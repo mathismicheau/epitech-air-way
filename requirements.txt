@@ -1,0 +1,11 @@
+# --- Serveur Backend ---
+fastapi          # Framework pour l'API
+uvicorn          # Moteur pour faire tourner FastAPI
+
+# --- Intelligence Artificielle ---
+ollama           # Pour communiquer avec Qwen 3
+
+# --- API de Vols ---
+amadeus          # Pour les données réelles de vols
+python-dotenv    # Pour lire tes clés secrètes dans le .env
+
