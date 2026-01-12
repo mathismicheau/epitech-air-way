@@ -8,4 +8,5 @@ ollama           # Pour communiquer avec Qwen 3
 # --- API de Vols ---
 amadeus          # Pour les données réelles de vols
 python-dotenv    # Pour lire tes clés secrètes dans le .env
+requests         # Pour faire des requêtes HTTP
 
