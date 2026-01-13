@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 
 // --- 1. DICTIONNAIRE DE TRADUCTION ---
@@ -17,7 +17,7 @@ const translations = {
     featActDesc: "Don't just visit, live the city. Our IA finds hidden gems, secret restaurants, and unusual activities.",
     featActImg: "https://images.pexels.com/photos/2108845/pexels-photo-2108845.jpeg?auto=compress&cs=tinysrgb&w=800",
     featFlightTitle: "Flight Support",
-    featFlightDesc: "Wingman monitors your flights and manages your boarding passes.",
+    featFlightDesc: "Integrated with Epitech Airways, Wingman monitors your flights and manages your boarding passes.",
     featFlightImg: "https://images.pexels.com/photos/46148/aircraft-jet-landing-cloud-46148.jpeg?auto=compress&cs=tinysrgb&w=800",
     ctaTitle: "Ready for takeoff?",
     ctaDesc: "Join thousands of travelers who trust Wingman for their adventures.",
@@ -31,8 +31,8 @@ const translations = {
     quit: "← Leave Terminal",
     placeholder: "Ask about flights, Airbnbs or activities...",
     boardingPass: "BOARDING PASS",
-    economy: "",
-    gate: ""
+    economy: "ECONOMY CLASS",
+    gate: "GATE: 42"
   },
   fr: {
     heroTitle: "Wingman",
@@ -62,8 +62,8 @@ const translations = {
     quit: "← Quitter le terminal",
     placeholder: "Vols, Airbnbs ou activités...",
     boardingPass: "CARTE D'EMBARQUEMENT",
-    economy: "",
-    gate: ""
+    economy: "CLASSE ÉCONOMIE",
+    gate: "PORTE: 42"
   }
 };
 
@@ -125,32 +125,70 @@ const LandingPage = ({ lang, setLang }) => {
   );
 };
 
-// --- 3. CHATBOT PAGE ---
+// --- 3. CHATBOT PAGE (AVEC PERSISTANCE LOCALSTORAGE) ---
 const ChatbotPage = ({ lang, setLang }) => {
   const navigate = useNavigate();
   const t = translations[lang];
-  const [messages, setMessages] = useState([{ text: t.welcomeMsg, sender: "bot" }]);
+  
+  // 1. Charger les messages depuis le localStorage au démarrage
+  const [chats, setChats] = useState(() => {
+    const saved = localStorage.getItem('wingman_chats');
+    return saved ? JSON.parse(saved) : [{ id: Date.now(), title: "Current Flight", messages: [{ text: translations[lang].welcomeMsg, sender: "bot" }] }];
+  });
+  
+  const [currentChatIndex, setCurrentChatIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // 2. Sauvegarder dans le localStorage à chaque changement de 'chats'
+  useEffect(() => {
+    localStorage.setItem('wingman_chats', JSON.stringify(chats));
+  }, [chats]);
+
+  const currentMessages = chats[currentChatIndex]?.messages || [];
+
+  const startNewChat = () => {
+    const newChat = {
+      id: Date.now(),
+      title: "New Mission",
+      messages: [{ text: t.welcomeMsg, sender: "bot" }]
+    };
+    setChats([newChat, ...chats]);
+    setCurrentChatIndex(0);
+  };
 
   const sendMessage = async (manualText = null) => {
     const textToSend = manualText || userInput;
     if (textToSend.trim() === "" || isLoading) return;
 
-    setMessages((prev) => [...prev, { text: textToSend, sender: "user" }]);
+    const updatedChats = [...chats];
+    const userMsg = { text: textToSend, sender: "user" };
+    updatedChats[currentChatIndex].messages.push(userMsg);
+    
+    // Update title on first message
+    if (updatedChats[currentChatIndex].messages.length === 2) {
+        updatedChats[currentChatIndex].title = textToSend.substring(0, 20);
+    }
+
+    setChats(updatedChats);
     setUserInput("");
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/chat", {
+      const response = await fetch("http://127.0.0.1:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: textToSend, language: lang }),
       });
       const data = await response.json();
-      setMessages((prev) => [...prev, { text: data.reply, sender: "bot" }]);
+      
+      const replyChats = [...updatedChats];
+      replyChats[currentChatIndex].messages.push({ text: data.reply, sender: "bot" });
+      setChats(replyChats);
     } catch (error) {
-      setMessages((prev) => [...prev, { text: "⚠️ SYSTEM ERROR.", sender: "bot" }]);
+      const errorChats = [...updatedChats];
+      errorChats[currentChatIndex].messages.push({ text: "⚠️ SYSTEM ERROR.", sender: "bot" });
+      setChats(errorChats);
     } finally {
       setIsLoading(false);
     }
@@ -159,22 +197,41 @@ const ChatbotPage = ({ lang, setLang }) => {
   return (
     <div style={styles.chatContainer}>
       <LanguageSwitcher lang={lang} setLang={setLang} />
+      
       <div style={styles.sidebar}>
         <div style={styles.logoSection} onClick={() => navigate('/')}>
           <img src="/LOGO-wingman.png" alt="Logo" style={styles.sidebarLogo} className="radiating-logo" />
           <h2 style={styles.logoText}>Wingman</h2>
         </div>
-        <button style={styles.newChatBtn} onClick={() => setMessages([{ text: t.welcomeMsg, sender: "bot" }])}>{t.newFlight}</button>
+        
+        <button style={styles.newChatBtn} onClick={startNewChat}>{t.newFlight}</button>
+        
         <div style={styles.historyBox}>
           <label style={styles.historyLabel}>{t.flightLogs}</label>
-          <p style={{color: '#94A3B8', fontSize: '0.8rem', textAlign: 'center', marginTop: '10px'}}>{t.noLogs}</p>
+          <div style={styles.logsList}>
+              {chats.map((chat, idx) => (
+                <div 
+                  key={chat.id} 
+                  onClick={() => setCurrentChatIndex(idx)}
+                  style={{
+                    ...styles.logItem, 
+                    backgroundColor: currentChatIndex === idx ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                    color: currentChatIndex === idx ? '#3B82F6' : '#1E293B',
+                    border: currentChatIndex === idx ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid transparent'
+                  }}
+                >
+                  ✈️ {chat.title}
+                </div>
+              ))}
+          </div>
         </div>
+        
         <button style={styles.backBtn} onClick={() => navigate('/')}>{t.quit}</button>
       </div>
 
       <div style={styles.chatMain}>
         <div style={styles.chatScroll}>
-          {messages.map((msg, i) => (
+          {currentMessages.map((msg, i) => (
             <div key={i} style={msg.sender === "user" ? styles.userWrap : styles.botWrap}>
               <div style={msg.sender === "user" ? styles.userBub : styles.botBub}>{msg.text}</div>
             </div>
@@ -209,7 +266,7 @@ const ChatbotPage = ({ lang, setLang }) => {
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()} 
                 placeholder={t.placeholder} 
               />
-              <div style={styles.ticketBottom}><span></span><span>{t.gate}</span></div>
+              <div style={styles.ticketBottom}><span>WINGMAN / EPITECH AIRWAYS</span><span>{t.gate}</span></div>
             </div>
             <div style={styles.dash}></div>
             <div style={styles.ticketRight}>
@@ -227,7 +284,7 @@ const ChatbotPage = ({ lang, setLang }) => {
                     <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill={userInput.trim() ? "white" : "#CBD5E1"}/>
                 </svg>
               </button>
-              <span style={styles.stubSerial}></span>
+              <span style={styles.stubSerial}>WM-2026</span>
             </div>
           </div>
         </div>
@@ -285,9 +342,11 @@ const styles = {
   logoSection: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', cursor: 'pointer' },
   logoText: { fontSize: '1.8rem', fontWeight: '900', color: '#0F172A' },
   newChatBtn: { backgroundColor: '#0F172A', color: 'white', padding: '16px', borderRadius: '12px', border: 'none', fontWeight: 'bold', cursor: 'pointer' },
-  historyBox: { flex: 1, marginTop: '40px' },
-  historyLabel: { fontSize: '0.75rem', color: '#94A3B8', fontWeight: 'bold', textAlign: 'center', display: 'block' },
-  backBtn: { background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', borderTop: '1px solid #E2E8F0', paddingTop: '20px' },
+  historyBox: { flex: 1, marginTop: '40px', overflowY: 'auto' },
+  historyLabel: { fontSize: '0.75rem', color: '#94A3B8', fontWeight: 'bold', textAlign: 'center', display: 'block', marginBottom: '15px' },
+  logsList: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  logItem: { padding: '12px', borderRadius: '10px', fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  backBtn: { background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', borderTop: '1px solid #E2E8F0', paddingTop: '20px', fontWeight: '600' },
   chatMain: { flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' },
   chatScroll: { flex: 1, overflowY: 'auto', padding: '40px 12% 200px 12%' },
   userWrap: { display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' },
