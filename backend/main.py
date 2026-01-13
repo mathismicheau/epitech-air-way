@@ -1,18 +1,15 @@
-
-from fastapi import FastAPI, HTTPException
-from models import ChatRequest
-from services import ask_model
+from fastapi import FastAPI
+from pydantic import BaseModel
+from mcp.controller import handle_chat
 
 app = FastAPI()
 
-@app.get("/")
-def root():
-    return {"message": "Backend FastAPI opérationnel"}
+class ChatRequest(BaseModel):
+    message: str
 
 @app.post("/chat")
 def chat(req: ChatRequest):
     try:
-        answer = ask_model(req.message)
-        return {"answer": answer}
+        return handle_chat(req.message)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"answer": "Erreur lors du traitement de la demande."}
