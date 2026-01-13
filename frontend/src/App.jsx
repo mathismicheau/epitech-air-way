@@ -1,187 +1,311 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 
-function App() {
-  // --- 1. STATE ---
-  const initialGreeting = { 
-    text: "Welcome aboard! I'm Wingman, your co-pilot. Where is our next flight path heading?", 
-    sender: "bot" 
-  };
-  
-  const [messages, setMessages] = useState([initialGreeting]);
+// --- 1. DICTIONNAIRE DE TRADUCTION ---
+const translations = {
+  en: {
+    heroTitle: "Wingman",
+    heroSubtitle: "Your AI co-pilot for the perfect trip. Now finding the best Airbnbs and local activities for you.",
+    launchBtn: "OPEN TERMINAL 🚀",
+    learnMore: "Learn more ↓",
+    howItWorks: "How does Wingman work?",
+    howItWorksSub: "Your intelligent co-pilot simplifies every step of your journey.",
+    featAirbnbTitle: "Airbnb Stays",
+    featAirbnbDesc: "Wingman analyzes thousands of listings to suggest the ideal Airbnb based on your budget and style.",
+    featAirbnbImg: "https://images.pexels.com/photos/276724/pexels-photo-276724.jpeg?auto=compress&cs=tinysrgb&w=800",
+    featActTitle: "Local Activities",
+    featActDesc: "Don't just visit, live the city. Our IA finds hidden gems, secret restaurants, and unusual activities.",
+    featActImg: "https://images.pexels.com/photos/2108845/pexels-photo-2108845.jpeg?auto=compress&cs=tinysrgb&w=800",
+    featFlightTitle: "Flight Support",
+    featFlightDesc: "Wingman monitors your flights and manages your boarding passes.",
+    featFlightImg: "https://images.pexels.com/photos/46148/aircraft-jet-landing-cloud-46148.jpeg?auto=compress&cs=tinysrgb&w=800",
+    ctaTitle: "Ready for takeoff?",
+    ctaDesc: "Join thousands of travelers who trust Wingman for their adventures.",
+    ctaBtn: "START EXPERIENCE 🚀",
+    welcomeMsg: "Welcome aboard! I'm Wingman. I can find Airbnbs, activities, or help with your flight. Where to?",
+    quickActionAirbnb: "Find Airbnbs 🏠",
+    quickActionActivities: "Things to do 🎡",
+    newFlight: "+ NEW FLIGHT",
+    flightLogs: "FLIGHT LOGS",
+    noLogs: "No recent logs",
+    quit: "← Leave Terminal",
+    placeholder: "Ask about flights, Airbnbs or activities...",
+    boardingPass: "BOARDING PASS",
+    economy: "",
+    gate: ""
+  },
+  fr: {
+    heroTitle: "Wingman",
+    heroSubtitle: "Votre co-pilote IA pour un voyage parfait. Trouvez les meilleurs Airbnbs et activités locales.",
+    launchBtn: "OUVRIR LE TERMINAL 🚀",
+    learnMore: "En savoir plus ↓",
+    howItWorks: "Comment fonctionne Wingman ?",
+    howItWorksSub: "Votre copilote intelligent simplifie chaque étape de votre voyage.",
+    featAirbnbTitle: "Hébergements Airbnb",
+    featAirbnbDesc: "Wingman suggère l'Airbnb idéal selon votre budget et vos envies.",
+    featAirbnbImg: "https://images.pexels.com/photos/276724/pexels-photo-276724.jpeg?auto=compress&cs=tinysrgb&w=800",
+    featActTitle: "Activités Locales",
+    featActDesc: "Notre IA déniche des perles rares et des lieux insolites.",
+    featActImg: "https://images.pexels.com/photos/2108845/pexels-photo-2108845.jpeg?auto=compress&cs=tinysrgb&w=800",
+    featFlightTitle: "Gestion de Vol",
+    featFlightDesc: "Wingman surveille vos vols et gère vos cartes d'embarquement.",
+    featFlightImg: "https://images.pexels.com/photos/46148/aircraft-jet-landing-cloud-46148.jpeg?auto=compress&cs=tinysrgb&w=800",
+    ctaTitle: "Prêt pour le décollage ?",
+    ctaDesc: "Rejoignez des milliers de voyageurs qui font confiance à Wingman.",
+    ctaBtn: "DÉMARRER L'EXPÉRIENCE 🚀",
+    welcomeMsg: "Bienvenue à bord ! Je suis Wingman. Je peux trouver des Airbnbs ou gérer votre vol. On va où ?",
+    quickActionAirbnb: "Trouver un Airbnb 🏠",
+    quickActionActivities: "Activités à faire 🎡",
+    newFlight: "+ NOUVEAU VOL",
+    flightLogs: "LOGS DE VOL",
+    noLogs: "Aucun log récent",
+    quit: "← Quitter le terminal",
+    placeholder: "Vols, Airbnbs ou activités...",
+    boardingPass: "CARTE D'EMBARQUEMENT",
+    economy: "",
+    gate: ""
+  }
+};
+
+const LanguageSwitcher = ({ lang, setLang }) => (
+  <div style={styles.langSwitcher}>
+    <span style={{...styles.langItem, fontWeight: lang === 'en' ? 'bold' : 'normal', color: lang === 'en' ? '#3B82F6' : '#94A3B8'}} onClick={() => setLang('en')}>EN</span>
+    <span style={{color: 'white', opacity: 0.5}}> | </span>
+    <span style={{...styles.langItem, fontWeight: lang === 'fr' ? 'bold' : 'normal', color: lang === 'fr' ? '#3B82F6' : '#94A3B8'}} onClick={() => setLang('fr')}>FR</span>
+  </div>
+);
+
+// --- 2. LANDING PAGE ---
+const LandingPage = ({ lang, setLang }) => {
+  const navigate = useNavigate();
+  const t = translations[lang];
+
+  return (
+    <div style={styles.landingWrapper}>
+      <LanguageSwitcher lang={lang} setLang={setLang} />
+      <section style={styles.heroFull}>
+        <img src="/LOGO-wingman.png" alt="Wingman" style={styles.largeLogo} className="radiating-logo" />
+        <h1 style={styles.heroTitle}>{t.heroTitle}</h1>
+        <p style={styles.heroSubtitle}>{t.heroSubtitle}</p>
+        <div style={styles.heroBtnGroup}>
+          <button style={styles.launchBtn} onClick={() => navigate('/chat')}>{t.launchBtn}</button>
+          <a href="#details" style={styles.learnMoreLink}>{t.learnMore}</a>
+        </div>
+      </section>
+
+      <section id="details" style={styles.whiteSection}>
+        <h2 style={styles.sectionTitle}>{t.howItWorks}</h2>
+        <p style={styles.sectionSub}>{t.howItWorksSub}</p>
+        <div style={styles.infoGrid}>
+          {[
+            { title: t.featAirbnbTitle, desc: t.featAirbnbDesc, img: t.featAirbnbImg },
+            { title: t.featActTitle, desc: t.featActDesc, img: t.featActImg },
+            { title: t.featFlightTitle, desc: t.featFlightDesc, img: t.featFlightImg }
+          ].map((feat, i) => (
+            <div key={i} style={styles.featCard}>
+              <div style={{...styles.featImg, backgroundImage: `url(${feat.img})`}}></div>
+              <div style={{padding: '25px'}}>
+                <h3 style={{marginBottom: '10px'}}>{feat.title}</h3>
+                <p style={{color: '#64748B', fontSize: '0.95rem'}}>{feat.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={styles.ctaSection}>
+        <div style={styles.ctaCard}>
+          <h2>{t.ctaTitle}</h2>
+          <p>{t.ctaDesc}</p>
+          <button style={styles.launchBtn} onClick={() => navigate('/chat')}>{t.ctaBtn}</button>
+        </div>
+      </section>
+      <footer style={styles.landingFooter}>© 2026 Epitech Airways - Wingman Project</footer>
+    </div>
+  );
+};
+
+// --- 3. CHATBOT PAGE ---
+const ChatbotPage = ({ lang, setLang }) => {
+  const navigate = useNavigate();
+  const t = translations[lang];
+  const [messages, setMessages] = useState([{ text: t.welcomeMsg, sender: "bot" }]);
   const [userInput, setUserInput] = useState("");
-  const [history, setHistory] = useState([]);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // NEW: Loading state
+  const [isLoading, setIsLoading] = useState(false);
 
-  // --- 2. LOGIC ---
-  const startNewChat = () => {
-    if (messages.length > 1) {
-      const firstUserMsg = messages.find(m => m.sender === "user");
-      const title = firstUserMsg ? firstUserMsg.text : "Previous Flight";
-      setHistory((prev) => [{ title: title, chats: [...messages] }, ...prev]);
-    }
-    setMessages([initialGreeting]);
-    setIsLoading(false);
-  };
+  const sendMessage = async (manualText = null) => {
+    const textToSend = manualText || userInput;
+    if (textToSend.trim() === "" || isLoading) return;
 
-  const loadOldChat = (savedTrip) => {
-    setMessages(savedTrip.chats);
-    setIsLoading(false);
-  };
-
-  const sendMessage = async () => {
-    if (userInput.trim() === "" || isLoading) return;
-
-    const newMsg = { text: userInput, sender: "user" };
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => [...prev, { text: textToSend, sender: "user" }]);
     setUserInput("");
-    setIsLoading(true); // Start animation
+    setIsLoading(true);
 
     try {
       const response = await fetch("http://localhost:5000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: newMsg.text }),
+        body: JSON.stringify({ message: textToSend, language: lang }),
       });
       const data = await response.json();
       setMessages((prev) => [...prev, { text: data.reply, sender: "bot" }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { text: "⚠️ SYSTEM: Check connection.", sender: "bot" }]);
+      setMessages((prev) => [...prev, { text: "⚠️ SYSTEM ERROR.", sender: "bot" }]);
     } finally {
-      setIsLoading(false); // Stop animation
+      setIsLoading(false);
     }
   };
 
-  // --- 3. UI ---
   return (
-    <div style={styles.container}>
-      {/* SIDEBAR */}
+    <div style={styles.chatContainer}>
+      <LanguageSwitcher lang={lang} setLang={setLang} />
       <div style={styles.sidebar}>
-        <div style={styles.logoSection}>
-          <img src="/LOGO-wingman.png" alt="Logo" style={styles.logoImg} />
+        <div style={styles.logoSection} onClick={() => navigate('/')}>
+          <img src="/LOGO-wingman.png" alt="Logo" style={styles.sidebarLogo} className="radiating-logo" />
           <h2 style={styles.logoText}>Wingman</h2>
         </div>
-        <button style={styles.newChatBtn} onClick={startNewChat}>+ NEW FLIGHT</button>
-        <div style={styles.historyContainer}>
-          <label style={styles.historyLabel}>FLIGHT LOGS</label>
-          <div style={styles.historyList}>
-            {history.map((item, index) => (
-              <div key={index} style={styles.historyItem} onClick={() => loadOldChat(item)}>
-                <span>✈️</span> {item.title.substring(0, 20)}...
-              </div>
-            ))}
-          </div>
+        <button style={styles.newChatBtn} onClick={() => setMessages([{ text: t.welcomeMsg, sender: "bot" }])}>{t.newFlight}</button>
+        <div style={styles.historyBox}>
+          <label style={styles.historyLabel}>{t.flightLogs}</label>
+          <p style={{color: '#94A3B8', fontSize: '0.8rem', textAlign: 'center', marginTop: '10px'}}>{t.noLogs}</p>
         </div>
+        <button style={styles.backBtn} onClick={() => navigate('/')}>{t.quit}</button>
       </div>
 
-      {/* MAIN CHAT */}
-      <div style={styles.mainArea}>
-        <div style={styles.chatWindow}>
-          {messages.map((msg, index) => (
-            <div key={index} style={msg.sender === "user" ? styles.userWrapper : styles.botWrapper}>
-              <div style={msg.sender === "user" ? styles.userBubble : styles.botBubble}>{msg.text}</div>
+      <div style={styles.chatMain}>
+        <div style={styles.chatScroll}>
+          {messages.map((msg, i) => (
+            <div key={i} style={msg.sender === "user" ? styles.userWrap : styles.botWrap}>
+              <div style={msg.sender === "user" ? styles.userBub : styles.botBub}>{msg.text}</div>
             </div>
           ))}
 
-          {/* LOADING ANIMATION BUBBLE */}
           {isLoading && (
-            <div style={styles.botWrapper}>
+            <div style={styles.botWrap}>
               <div style={styles.loadingBubble}>
-                <div className="dot" style={styles.dot}></div>
-                <div className="dot" style={{...styles.dot, animationDelay: '0.2s'}}></div>
-                <div className="dot" style={{...styles.dot, animationDelay: '0.4s'}}></div>
+                <div className="dot"></div>
+                <div className="dot"></div>
+                <div className="dot"></div>
               </div>
             </div>
           )}
-        </div>
-        
-        {/* INPUT AREA */}
-        <div style={styles.inputWrapper}>
-          <div style={styles.boardingPass}>
-            <div style={styles.ticketMain}>
-              <div style={styles.ticketHeader}><span></span><span>BOARDING PASS</span></div>
-              <input 
-                style={styles.inputField}
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Search flights or ask a question..." 
-                disabled={isLoading}
-              />
-              <div style={styles.ticketFooter}><span></span><span></span></div>
+
+          {!isLoading && (
+            <div style={styles.quickActions}>
+              <button style={styles.actBtn} onClick={() => sendMessage(t.quickActionAirbnb)}>{t.quickActionAirbnb}</button>
+              <button style={styles.actBtn} onClick={() => sendMessage(t.quickActionActivities)}>{t.quickActionActivities}</button>
             </div>
-            <div style={styles.perforation}></div>
-            <div style={styles.ticketStub}>
-              <div style={styles.stubLabel}>SEND</div>
+          )}
+        </div>
+
+        <div style={styles.inputArea}>
+          <div style={styles.ticket}>
+            <div style={styles.ticketLeft}>
+              <div style={styles.ticketTop}><span>{t.economy}</span><span>{t.boardingPass}</span></div>
+              <input 
+                style={styles.ticketInput} 
+                value={userInput} 
+                onChange={(e) => setUserInput(e.target.value)} 
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()} 
+                placeholder={t.placeholder} 
+              />
+              <div style={styles.ticketBottom}><span></span><span>{t.gate}</span></div>
+            </div>
+            <div style={styles.dash}></div>
+            <div style={styles.ticketRight}>
+              <span style={styles.stubLabel}>SEND</span>
               <button 
+                className="send-button-hover"
                 style={{
-                  ...styles.geminiBtn,
-                  backgroundColor: userInput.trim() && !isLoading ? '#0F172A' : '#F1F5F9',
-                  transform: isHovered && userInput.trim() ? 'translateY(-2px)' : 'translateY(0)',
-                }}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-                onClick={sendMessage}
-                disabled={!userInput.trim() || isLoading}
+                  ...styles.sendBtn, 
+                  backgroundColor: userInput.trim() ? '#0F172A' : '#F1F5F9',
+                  cursor: userInput.trim() ? 'pointer' : 'default'
+                }} 
+                onClick={() => sendMessage()}
               >
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill={userInput.trim() && !isLoading ? "white" : "#CBD5E1"}/>
+                    <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill={userInput.trim() ? "white" : "#CBD5E1"}/>
                 </svg>
               </button>
-              <div style={styles.stubSerial}></div>
+              <span style={styles.stubSerial}></span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* INLINE ANIMATION STYLES */}
       <style>{`
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0); opacity: 0.3; }
-          50% { transform: translateY(-5px); opacity: 1; }
-        }
-        .dot {
-          animation: bounce 1.4s infinite ease-in-out;
-        }
+        @keyframes pulseGlow { 0% { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.4)); } 50% { filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); } 100% { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.4)); } }
+        .radiating-logo { animation: pulseGlow 3s infinite ease-in-out; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); opacity: 0.3; } 50% { transform: translateY(-5px); opacity: 1; } }
+        .dot { width: 8px; height: 8px; background: #3B82F6; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; }
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+        .send-button-hover:hover { transform: scale(1.1); filter: brightness(1.2); transition: 0.2s; }
       `}</style>
     </div>
   );
-}
-
-// --- STYLES ---
-const styles = {
-  // ... (previous styles remain the same)
-  container: { display: 'flex', height: '100vh', width: '100vw', backgroundImage: "linear-gradient(rgba(248, 250, 252, 0.7), rgba(248, 250, 252, 0.7)), url('/hero-bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: 'Inter, sans-serif', overflow: 'hidden' },
-  sidebar: { width: '300px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(12px)', borderRight: '1px solid #E2E8F0', padding: '32px 24px', display: 'flex', flexDirection: 'column' },
-  logoSection: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '40px' },
-  logoImg: { width: '140px', height: 'auto' },
-  logoText: { fontSize: '1.8rem', fontWeight: '900', color: '#0F172A' },
-  newChatBtn: { backgroundColor: '#0F172A', color: '#FFFFFF', border: 'none', padding: '16px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' },
-  historyContainer: { marginTop: '40px', flex: 1, overflowY: 'auto' },
-  historyLabel: { fontSize: '0.75rem', fontWeight: '700', color: '#94A3B8', textAlign: 'center', display: 'block' },
-  historyItem: { padding: '12px 0', fontSize: '0.85rem', color: '#475569', borderBottom: '1px solid #F1F5F9', cursor: 'pointer', textAlign: 'center' },
-  mainArea: { flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' },
-  chatWindow: { flex: 1, overflowY: 'auto', padding: '40px 12% 220px 12%' },
-  userWrapper: { display: 'flex', justifyContent: 'flex-end', marginBottom: '22px' },
-  botWrapper: { display: 'flex', justifyContent: 'flex-start', marginBottom: '22px' },
-  userBubble: { backgroundColor: '#3B82F6', color: '#FFFFFF', padding: '14px 22px', borderRadius: '22px 22px 4px 22px', maxWidth: '75%' },
-  botBubble: { backgroundColor: 'white', color: '#1E293B', padding: '14px 22px', borderRadius: '22px 22px 22px 4px', maxWidth: '75%', border: '1px solid #E2E8F0' },
-  
-  // LOADING BUBBLE STYLE
-  loadingBubble: { backgroundColor: 'white', padding: '18px 25px', borderRadius: '22px 22px 22px 4px', border: '1px solid #E2E8F0', display: 'flex', gap: '5px', alignItems: 'center' },
-  dot: { width: '8px', height: '8px', backgroundColor: '#3B82F6', borderRadius: '50%' },
-
-  inputWrapper: { position: 'absolute', bottom: '30px', left: '10%', right: '10%', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  boardingPass: { display: 'flex', width: '100%', maxWidth: '800px', height: '140px', backgroundColor: 'white', borderRadius: '15px', boxShadow: '0 15px 35px rgba(0,0,0,0.12)', overflow: 'hidden', border: '1px solid #E2E8F0' },
-  ticketMain: { flex: 3, padding: '20px 30px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' },
-  ticketHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 'bold', color: '#94A3B8' },
-  ticketFooter: { display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#94A3B8' },
-  inputField: { border: 'none', outline: 'none', fontSize: '1.4rem', fontFamily: '"Courier New", Courier, monospace', textTransform: 'uppercase', color: '#0F172A', backgroundColor: 'transparent' },
-  perforation: { borderLeft: '2px dashed #E2E8F0', margin: '15px 0' },
-  ticketStub: { flex: 1, backgroundColor: '#F8FAFC', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between' },
-  stubLabel: { fontSize: '0.75rem', fontWeight: 'bold', color: '#94A3B8' },
-  stubSerial: { fontSize: '0.65rem', color: '#CBD5E1' },
-  geminiBtn: { width: '52px', height: '52px', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }
 };
 
-export default App;
+export default function App() {
+  const [lang, setLang] = useState('en');
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage lang={lang} setLang={setLang} />} />
+        <Route path="/chat" element={<ChatbotPage lang={lang} setLang={setLang} />} />
+      </Routes>
+    </Router>
+  );
+}
+
+// --- 4. STYLES ---
+const styles = {
+  landingWrapper: { width: '100vw', backgroundColor: '#0F172A', color: 'white', fontFamily: 'Inter, sans-serif', overflowX: 'hidden' },
+  heroFull: { height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'radial-gradient(circle at center, #1E293B 0%, #0F172A 100%)', textAlign: 'center' },
+  heroTitle: { fontSize: '4.5rem', fontWeight: '900' },
+  heroSubtitle: { fontSize: '1.2rem', color: '#94A3B8', maxWidth: '600px', marginBottom: '40px' },
+  largeLogo: { width: '150px', marginBottom: '20px' },
+  launchBtn: { background: '#3B82F6', color: 'white', padding: '18px 45px', borderRadius: '50px', border: 'none', fontWeight: 'bold', cursor: 'pointer' },
+  heroBtnGroup: { display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'center' },
+  learnMoreLink: { color: '#94A3B8', textDecoration: 'none' },
+  whiteSection: { padding: '100px 10%', backgroundColor: 'white', color: '#0F172A', textAlign: 'center' },
+  sectionTitle: { fontSize: '2.5rem', fontWeight: '800' },
+  sectionSub: { color: '#64748B', marginBottom: '50px' },
+  infoGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' },
+  featCard: { borderRadius: '20px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', overflow: 'hidden', textAlign: 'left' },
+  featImg: { width: '100%', height: '200px', backgroundSize: 'cover', backgroundPosition: 'center' },
+  ctaSection: { padding: '80px 10%', backgroundColor: '#F8FAFC' },
+  ctaCard: { background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)', padding: '60px', borderRadius: '30px', textAlign: 'center' },
+  landingFooter: { padding: '40px', textAlign: 'center', color: '#94A3B8', background: 'white' },
+  langSwitcher: { position: 'fixed', top: '20px', right: '30px', zIndex: 1000, background: 'rgba(0,0,0,0.2)', padding: '10px 20px', borderRadius: '30px', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' },
+  langItem: { cursor: 'pointer', margin: '0 5px' },
+
+  chatContainer: { display: 'flex', height: '100vh', width: '100vw', backgroundImage: "linear-gradient(rgba(248, 250, 252, 0.8), rgba(248, 250, 252, 0.8)), url('/hero-bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: 'Inter, sans-serif' },
+  sidebar: { width: '300px', backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(12px)', borderRight: '1px solid #E2E8F0', padding: '30px', display: 'flex', flexDirection: 'column' },
+  sidebarLogo: { width: '140px' },
+  logoSection: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', cursor: 'pointer' },
+  logoText: { fontSize: '1.8rem', fontWeight: '900', color: '#0F172A' },
+  newChatBtn: { backgroundColor: '#0F172A', color: 'white', padding: '16px', borderRadius: '12px', border: 'none', fontWeight: 'bold', cursor: 'pointer' },
+  historyBox: { flex: 1, marginTop: '40px' },
+  historyLabel: { fontSize: '0.75rem', color: '#94A3B8', fontWeight: 'bold', textAlign: 'center', display: 'block' },
+  backBtn: { background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', borderTop: '1px solid #E2E8F0', paddingTop: '20px' },
+  chatMain: { flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' },
+  chatScroll: { flex: 1, overflowY: 'auto', padding: '40px 12% 200px 12%' },
+  userWrap: { display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' },
+  botWrap: { display: 'flex', justifyContent: 'flex-start', marginBottom: '20px' },
+  userBub: { backgroundColor: '#3B82F6', color: 'white', padding: '14px 22px', borderRadius: '22px 22px 4px 22px', maxWidth: '75%' },
+  botBub: { backgroundColor: 'white', color: '#1E293B', padding: '14px 22px', borderRadius: '22px 22px 22px 4px', maxWidth: '75%', border: '1px solid #E2E8F0' },
+  loadingBubble: { background: 'white', border: '1px solid #E2E8F0', padding: '15px 25px', borderRadius: '22px 22px 22px 4px', display: 'flex', gap: '5px', alignItems: 'center' },
+  quickActions: { display: 'flex', gap: '10px', marginBottom: '20px' },
+  actBtn: { background: 'white', border: '1px solid #3B82F6', color: '#3B82F6', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' },
+  inputArea: { position: 'absolute', bottom: '30px', left: '10%', right: '10%' },
+  ticket: { display: 'flex', height: '140px', backgroundColor: 'white', borderRadius: '15px', boxShadow: '0 15px 35px rgba(0,0,0,0.1)', overflow: 'hidden', border: '1px solid #E2E8F0' },
+  ticketLeft: { flex: 3, padding: '20px 30px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' },
+  ticketTop: { display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 'bold', color: '#94A3B8' },
+  ticketBottom: { display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#94A3B8' },
+  ticketInput: { border: 'none', outline: 'none', fontSize: '1.4rem', fontFamily: '"Courier New", Courier, monospace', textTransform: 'uppercase', color: '#0F172A', backgroundColor: 'white', width: '100%', marginTop: '10px' },
+  dash: { borderLeft: '2px dashed #E2E8F0', margin: '15px 0' },
+  ticketRight: { flex: 1, backgroundColor: '#F8FAFC', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between' },
+  stubLabel: { fontSize: '0.75rem', fontWeight: 'bold', color: '#94A3B8' },
+  sendBtn: { width: '52px', height: '52px', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' },
+  stubSerial: { fontSize: '0.6rem', color: '#CBD5E1', fontWeight: 'bold' }
+};
