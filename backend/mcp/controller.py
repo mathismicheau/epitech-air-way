@@ -1,5 +1,7 @@
-from mcp.model import extract_flight_query
+
 from mcp.provider import get_flights
+from mcp.model import process_user_message
+from mcp.googleProvider import save_reservation_to_sheet
 
 def format_flight_data(raw_flights):
     """Transforme le gros JSON Amadeus en format léger pour ton React."""
@@ -19,29 +21,45 @@ def format_flight_data(raw_flights):
 
 
 
-def handle_chat(message: str):
-    # 1. IA
-    query = extract_flight_query(message)
+def handle_chat(message: str, last_search_results: list = None):
+    # 1. Analyse de l'intention par l'IA
+    result = process_user_message(message)
 
-    # 2. Provider
-    raw_flights = get_flights(query)
+    # --- CAS : RECHERCHE DE VOLS ---
+    if result["intent"] == "search":
+        raw_flights = get_flights(result)
+        flights = format_flight_data(raw_flights)
 
-    # 3. Formatting
-    flights = format_flight_data(raw_flights)
+        if not flights:
+            return {
+                "answer": f"Aucun vol trouvé pour {result.get('destinationLocationCode')}.",
+                "flights": []
+            }
 
-    if not flights:
+        # CORRECTION INDENTATION : On sort du "if not flights"
+        prices = [float(f["price"]) for f in flights]
+        
         return {
-            "answer": f"Aucun vol trouvé entre {query['originLocationCode']} et {query['destinationLocationCode']}.",
-            "flights": []
+            "answer": (
+                f"J'ai trouvé {len(flights)} vols vers {result['destinationLocationCode']} "
+                f"le {result['departureDate']} à partir de {min(prices)} {flights[0]['currency']}."
+            ),
+            "flights": flights # On renvoie ça au React pour qu'il les affiche
         }
 
-    prices = [float(f["price"]) for f in flights]
+    # --- CAS : RÉSERVATION ---
+    elif result["intent"] == "book":
+        # ATTENTION : Ici, il faut normalement récupérer les infos du vol sélectionné.
+        # Si tu es en test, on imagine que tu réserves le premier vol du dernier résultat.
+        if last_search_results:
+            flight_to_book = last_search_results[0] 
+            success = save_reservation_to_sheet(flight_to_book)
+            return {
+                "answer": "C'est fait ! Votre réservation a été enregistrée dans le Google Sheet.",
+                "status": "success"
+            }
+        else:
+            return {"answer": "Quel vol souhaitez-vous réserver ? Je n'ai pas de recherche en cours."}
 
-    return {
-        "answer": (
-            f"J'ai trouvé {len(flights)} vols de {query['originLocationCode']} "
-            f"vers {query['destinationLocationCode']} le {query['departureDate']} "
-            f"à partir de {min(prices)}{flights[0]['currency']}."
-        ),
-        "flights": flights
-    }
+    # --- CAS : ERREUR / INCONNU ---
+    return {"answer": "Je n'ai pas bien compris votre demande."}
