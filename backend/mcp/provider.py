@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ======================
 # CONFIG
+# ======================
 CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID")
 CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET")
 
@@ -18,8 +20,13 @@ HOTEL_LIST_URL = "https://test.api.amadeus.com/v1/reference-data/locations/hotel
 HOTEL_OFFERS_URL = "https://test.api.amadeus.com/v3/shopping/hotel-offers"
 
 
+# ======================
 # AUTH
+# ======================
 def get_token() -> str:
+    if not CLIENT_ID or not CLIENT_SECRET:
+        raise RuntimeError("AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET manquants dans le .env")
+
     r = requests.post(
         TOKEN_URL,
         data={
@@ -34,8 +41,20 @@ def get_token() -> str:
     return r.json()["access_token"]
 
 
+# ======================
 # FLIGHTS
-def search_flights(query: dict):
+# ======================
+def search_flights(query: dict) -> list[dict]:
+    """
+    Attendu (minimum):
+    {
+      "originLocationCode": "TLS",
+      "destinationLocationCode": "CDG",
+      "departureDate": "2026-02-10",
+      "adults": 1,
+      "max": 5 (optionnel)
+    }
+    """
     token = get_token()
 
     r = requests.get(
@@ -48,14 +67,20 @@ def search_flights(query: dict):
     return r.json().get("data", [])
 
 
+# ======================
 # HOTELS
+# ======================
 def city_name_to_city_code(city_name: str) -> str:
     token = get_token()
+
+    name = (city_name or "").strip()
+    if not name:
+        raise ValueError("city_name vide")
 
     r = requests.get(
         CITY_SEARCH_URL,
         headers={"Authorization": f"Bearer {token}"},
-        params={"subType": "CITY", "keyword": city_name},
+        params={"subType": "CITY", "keyword": name},
         timeout=15,
     )
     r.raise_for_status()
@@ -64,14 +89,30 @@ def city_name_to_city_code(city_name: str) -> str:
     if not data:
         raise ValueError(f"Ville inconnue : {city_name}")
 
-    return data[0]["iataCode"]
+    iata = data[0].get("iataCode")
+    if not iata:
+        raise ValueError(f"Impossible de récupérer un cityCode pour : {city_name}")
+
+    return iata
 
 
-def search_hotels(query: dict):
+def search_hotels(query: dict) -> list[dict]:
+    """
+    Attendu:
+    {
+      "city_name": "Toulouse",
+      "checkin": "2026-02-10",
+      "checkout": "2026-02-12",
+      "adults": 2,
+      "rooms": 1
+    }
+    Retour: liste d'objets (Amadeus hotel offers v3)
+    """
     token = get_token()
 
     city_code = city_name_to_city_code(query["city_name"])
 
+    # 1) Liste des hôtels (IDs) via by-city
     r1 = requests.get(
         HOTEL_LIST_URL,
         headers={"Authorization": f"Bearer {token}"},
@@ -81,11 +122,12 @@ def search_hotels(query: dict):
     r1.raise_for_status()
 
     hotels = r1.json().get("data", [])[:10]
-    hotel_ids = [h["hotelId"] for h in hotels if "hotelId" in h]
+    hotel_ids = [h.get("hotelId") for h in hotels if h.get("hotelId")]
 
     if not hotel_ids:
         return []
 
+    # 2) Offres/prix via v3 hotel-offers
     r2 = requests.get(
         HOTEL_OFFERS_URL,
         headers={"Authorization": f"Bearer {token}"},
@@ -93,8 +135,8 @@ def search_hotels(query: dict):
             "hotelIds": ",".join(hotel_ids),
             "checkInDate": query["checkin"],
             "checkOutDate": query["checkout"],
-            "adults": query["adults"],
-            "roomQuantity": query["rooms"],
+            "adults": int(query.get("adults", 2)),
+            "roomQuantity": int(query.get("rooms", 1)),
         },
         timeout=30,
     )
