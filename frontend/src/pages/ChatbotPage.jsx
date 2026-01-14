@@ -20,6 +20,7 @@ const ChatbotPage = ({ lang, setLang }) => {
   const [currentChatIndex, setCurrentChatIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(null);  // <- AJOUTER ICI
 
   useEffect(() => {
     localStorage.setItem('wingman_chats', JSON.stringify(chats));
@@ -28,14 +29,14 @@ const ChatbotPage = ({ lang, setLang }) => {
   const startNewChat = () => {
     setChats([{ id: Date.now(), title: "New Mission", messages: [{ text: t.welcomeMsg, sender: "bot" }] }, ...chats]);
     setCurrentChatIndex(0);
+    setSessionId(null);  // <- Reset la session pour un nouveau chat
   };
 
-  // LOGIQUE DE SUPPRESSION AJOUTÉE ICI
   const deleteChat = (chatId) => {
     if (chats.length === 1) {
-      // Si c'est le dernier chat, on le remet à zéro proprement
       setChats([{ id: Date.now(), title: "Current Flight", messages: [{ text: t.welcomeMsg, sender: "bot" }] }]);
       setCurrentChatIndex(0);
+      setSessionId(null);  // <- Reset la session
       return;
     }
 
@@ -43,9 +44,9 @@ const ChatbotPage = ({ lang, setLang }) => {
     const updatedChats = chats.filter(chat => chat.id !== chatId);
     setChats(updatedChats);
 
-    // Ajustement de l'index pour éviter de crash si on supprime le chat actif
     if (currentChatIndex === indexToRemove) {
       setCurrentChatIndex(0);
+      setSessionId(null);  // <- Reset la session
     } else if (currentChatIndex > indexToRemove) {
       setCurrentChatIndex(prev => prev - 1);
     }
@@ -64,12 +65,27 @@ const ChatbotPage = ({ lang, setLang }) => {
     setIsLoading(true);
 
     try {
+      console.log("Envoi avec session_id:", sessionId);  // <- Debug
+
       const response = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: textToSend, language: lang }),
+        body: JSON.stringify({ 
+          message: textToSend, 
+          language: lang,
+          session_id: sessionId  // <- ENVOYER LE SESSION_ID
+        }),
       });
+      
       const data = await response.json();
+      console.log("Réponse backend:", data);  // <- Debug
+
+      // Sauvegarder le session_id retourné
+      if (data.session_id) {
+        setSessionId(data.session_id);
+        console.log("Session_id sauvegardé:", data.session_id);  // <- Debug
+      }
+
       const finalChats = [...chats];
       finalChats[currentChatIndex].messages.push({ text: data.answer, sender: "bot" });
       setChats(finalChats);
@@ -85,7 +101,6 @@ const ChatbotPage = ({ lang, setLang }) => {
   return (
     <div style={styles.chatContainer}>
       <LanguageSwitcher lang={lang} setLang={setLang} />
-      {/* ON PASSE deleteChat ICI */}
       <Sidebar 
         chats={chats} 
         currentChatIndex={currentChatIndex} 

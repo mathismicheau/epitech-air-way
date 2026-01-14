@@ -44,7 +44,8 @@ def ask_model_to_process(message: str) -> dict:
         "   - originLocationCode / destinationLocationCode : codes IATA (3 lettres majuscules)\n"
         "   - departureDate : YYYY-MM-DD\n"
         "   - adults : nombre (1 par défaut)\n"
-        "3) Si intent == 'book' : réponds en JSON à plat avec UNIQUEMENT : intent.\n"
+        "3. Si intent == 'book' : l'utilisateur veut confirmer une réservation (ex: 'Réserve ce vol', 'Je prends celui-là').\n"
+        "4. Format de date : YYYY-MM-DD.\n"
         f"Phrase : {message}"
     )
 
