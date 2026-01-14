@@ -139,6 +139,7 @@ const ChatbotPage = ({ lang, setLang }) => {
   const [currentChatIndex, setCurrentChatIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
 
   // 2. Sauvegarder dans le localStorage à chaque changement de 'chats'
   useEffect(() => {
@@ -176,11 +177,15 @@ const ChatbotPage = ({ lang, setLang }) => {
       const response = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: textToSend, language: lang }),
+        body: JSON.stringify({ message: textToSend, language: lang, session_id: sessionId  }),
       });
    
       const data = await response.json();
       console.log("Réponse du backend:", data); // <--- Vérifie ta console (F12) !
+
+      if (data.session_id) {
+        setSessionId(data.session_id);
+      }
    
       const botMsg = { 
         text: data.answer,  
