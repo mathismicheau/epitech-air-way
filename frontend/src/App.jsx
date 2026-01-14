@@ -160,34 +160,44 @@ const ChatbotPage = ({ lang, setLang }) => {
   const sendMessage = async (manualText = null) => {
     const textToSend = manualText || userInput;
     if (textToSend.trim() === "" || isLoading) return;
-
+   
     const updatedChats = [...chats];
     const userMsg = { text: textToSend, sender: "user" };
     updatedChats[currentChatIndex].messages.push(userMsg);
-    
-    // Update title on first message
     if (updatedChats[currentChatIndex].messages.length === 2) {
         updatedChats[currentChatIndex].title = textToSend.substring(0, 20);
     }
-
+   
     setChats(updatedChats);
     setUserInput("");
     setIsLoading(true);
-
+   
     try {
-      const response = await fetch("http://127.0.0.1:8000/chat", {
+      const response = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: textToSend, language: lang }),
       });
+   
       const data = await response.json();
-      
-      const replyChats = [...updatedChats];
-      replyChats[currentChatIndex].messages.push({ text: data.reply, sender: "bot" });
-      setChats(replyChats);
+      console.log("Réponse du backend:", data); // <--- Vérifie ta console (F12) !
+   
+      const botMsg = { 
+        text: data.answer,  
+        sender: "bot",
+        flights: data.flights || []
+      };
+    
+      const updatedChatsWithBot = [...chats];
+      updatedChatsWithBot[currentChatIndex].messages.push(botMsg);
+      setChats(updatedChatsWithBot); // Force la mise à jour de l'UI
     } catch (error) {
-      const errorChats = [...updatedChats];
-      errorChats[currentChatIndex].messages.push({ text: "⚠️ SYSTEM ERROR.", sender: "bot" });
+      console.error("Erreur de connexion:", error);
+      const errorChats = [...chats];
+      errorChats[currentChatIndex].messages.push({ 
+        text: "⚠️ CONNECTION ERROR. Is the backend running?", 
+        sender: "bot" 
+      });
       setChats(errorChats);
     } finally {
       setIsLoading(false);
