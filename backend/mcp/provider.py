@@ -26,7 +26,7 @@ def get_token():
     return r.json()["access_token"]
 
 
-def search_flights(origin, dest, date, adults=1, max_results=5):
+def search_flights(origin, dest, date, adults=1):
     token = get_token()
 
     r = requests.get(
@@ -37,7 +37,6 @@ def search_flights(origin, dest, date, adults=1, max_results=5):
             "destinationLocationCode": dest,
             "departureDate": date,
             "adults": adults,
-            "max": max_results
         }
     )
     r.raise_for_status()

@@ -1,11 +1,22 @@
 import json
 import ollama
+from datetime import datetime
+import locale
 
+MODEL_NAME = "llama3"
 
-MODEL_NAME = "qwen3"
+try:
+    locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+except:
+    locale.setlocale(locale.LC_TIME, 'fr_FR')
+
+def get_current_date():
+    now = datetime.now()
+    return f"Aujourd'hui nous sommes le {now.strftime('%A %d %B %Y')}."
 
 def ask_model_to_process(message: str) -> dict:
-    current_date = "Aujourd'hui nous sommes le lundi 12 Janvier 2026."
+    
+    current_date = get_current_date()
     
     prompt = (
         f"{current_date}\n"

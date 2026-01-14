@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Optional
 from mcp.controller import handle_chat
 from mcp.googleProvider import save_reservation_to_sheet
 
 from fastapi.middleware.cors import CORSMiddleware
-
 
 app = FastAPI()
 
@@ -21,6 +21,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None  # <- Ajouter session_id
 
 class ReservationRequest(BaseModel):
     id: str
@@ -36,9 +37,9 @@ class ReservationRequest(BaseModel):
 @app.post("/chat")
 def chat(req: ChatRequest):
     try:
-        return handle_chat(req.message)
+        return handle_chat(req.message, req.session_id)
     except Exception as e:
-        return {"answer": "Erreur lors du traitement de la demande."}
+        return {"answer": f"Erreur: {str(e)}"}
 
 @app.post("/reserve")
 def reserve(req: ReservationRequest):
