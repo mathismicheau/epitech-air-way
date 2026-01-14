@@ -6,3 +6,5 @@ __pycache__/
 
 backend/mcp/*.json
 
+.env
+backend/famous-empire-477209-f1-eec914cd4569.json
