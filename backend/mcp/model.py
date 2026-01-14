@@ -1,52 +1,75 @@
+from __future__ import annotations
+
 import json
 import ollama
 
+MODEL_NAME = "qwen3:1.7b"
 
-MODEL_NAME = "qwen3"
-
-def ask_model_to_extract(message: str) -> dict:
-    """
-    Extrait les données à plat (sans sous-clé 'vol') et au format de date ISO.
-    """
-    current_date = "Aujourd'hui nous sommes le lundi 12 Janvier 2026."
-    
+# FLIGHTS
+def extract_flight_query(message: str) -> dict:
     prompt = (
-        f"{current_date}\n"
-        "Tu dois extraire les informations de vol de la phrase utilisateur.\n"
-        "CONSIGNES STRICTES :\n"
-        "1. Les clés du JSON doivent être UNIQUEMENT: originLocationCode, destinationLocationCode, departureDate, adults.\n"
-        "2. NE PAS créer de clé parente (comme 'vol' ou 'flight'). Le JSON doit être à plat.\n"
-        "3. departureDate doit être au format YYYY-MM-DD (ex: 2026-01-20).\n"
-        "4. originLocationCode et destinationLocationCode doivent être en codes IATA (3 lettres).\n"
-        "5. adults doit être un nombre (1 par défaut).\n"
+        "Tu extrais des informations de vol.\n"
+        "Réponds UNIQUEMENT en JSON à plat avec ces clés :\n"
+        "originLocationCode, destinationLocationCode, departureDate, adults.\n"
+        "origin/destination = codes IATA (ex: TLS, CDG).\n"
+        "departureDate = YYYY-MM-DD.\n"
+        "adults = nombre (1 par défaut).\n\n"
         f"Phrase : {message}"
     )
 
-    try:
-        response = ollama.chat(
-            model=MODEL_NAME,
-            format='json',
-            messages=[
-                {'role': 'system', 'content': 'Tu es un extracteur de données strict. Tu réponds UNIQUEMENT en JSON à plat.'},
-                {'role': 'user', 'content': prompt}
-            ]
-        )
-        data = json.loads(response['message']['content'])
-        
-        # Sécurité : Si l'IA a quand même créé une clé 'vol', on l'aplatit
-        
-                
-        print(f"Extraction IA : {data}")
-        return data
-    except Exception as e:
-        print(f"Erreur IA : {e}")
-        return {}
-    
+    response = ollama.chat(
+        model=MODEL_NAME,
+        format="json",
+        messages=[
+            {"role": "system", "content": "Tu réponds uniquement en JSON valide."},
+            {"role": "user", "content": prompt},
+        ],
+    )
 
-def extract_flight_query(message: str) -> dict:
-    data = ask_model_to_extract(message)
+    data = json.loads(response["message"]["content"])
 
     if not data.get("originLocationCode") or not data.get("destinationLocationCode"):
-        raise ValueError("Extraction IA incomplète")
+        raise ValueError("Impossible d’extraire les aéroports de départ / arrivée.")
 
-    return data
+    return {
+        "originLocationCode": data["originLocationCode"],
+        "destinationLocationCode": data["destinationLocationCode"],
+        "departureDate": data["departureDate"],
+        "adults": int(data.get("adults", 1)),
+    }
+
+
+# HOTELS
+def extract_hotel_query(message: str) -> dict:
+    prompt = (
+        "Tu extrais des informations d’hôtel.\n"
+        "Réponds UNIQUEMENT en JSON à plat avec ces clés :\n"
+        "city_name, checkin, checkout, adults, rooms.\n"
+        "Dates = YYYY-MM-DD.\n"
+        "adults = 2 par défaut, rooms = 1 par défaut.\n\n"
+        f"Phrase : {message}"
+    )
+
+    response = ollama.chat(
+        model=MODEL_NAME,
+        format="json",
+        messages=[
+            {"role": "system", "content": "Tu réponds uniquement en JSON valide."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    data = json.loads(response["message"]["content"])
+
+    if not data.get("city_name"):
+        raise ValueError("Ville manquante pour la recherche d’hôtel.")
+    if not data.get("checkin") or not data.get("checkout"):
+        raise ValueError("Dates checkin / checkout manquantes (YYYY-MM-DD).")
+
+    return {
+        "city_name": data["city_name"],
+        "checkin": data["checkin"],
+        "checkout": data["checkout"],
+        "adults": int(data.get("adults", 2)),
+        "rooms": int(data.get("rooms", 1)),
+    }
