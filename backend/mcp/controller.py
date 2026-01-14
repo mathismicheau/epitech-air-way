@@ -6,16 +6,9 @@ from typing import Any, Dict, List, Optional
 
 from mcp.session import get_session, update_session
 from mcp.googleProvider import save_reservation_to_sheet
-
-# Extraction IA (new)
-from mcp.model import extract_flight_query, extract_hotel_query, process_user_message  # garde process_user_message si tu l'utilises
-# Providers (Amadeus)
+from mcp.model import extract_flight_query, extract_hotel_query, process_user_message
 from mcp.provider import search_flights, search_hotels
 
-
-# -----------------------------
-# Regex + helpers UX
-# -----------------------------
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
@@ -26,7 +19,7 @@ def _is_hotel_intent(text: str) -> bool:
 
 def _hotel_need_dates_answer() -> str:
     return (
-        "Ok 🙂 Pour chercher un hôtel, j’ai besoin des dates.\n"
+        "Ok. Pour chercher un hôtel, j’ai besoin des dates.\n"
         "Donne-moi : check-in et check-out au format YYYY-MM-DD.\n"
         "Exemple : hotel Toulouse 2026-02-10 2026-02-12"
     )
@@ -34,7 +27,7 @@ def _hotel_need_dates_answer() -> str:
 
 def _flight_need_info_answer() -> str:
     return (
-        "Ok 🙂 Pour chercher un vol, il me faut :\n"
+        "Ok. Pour chercher un vol, il me faut :\n"
         "- départ (code IATA, ex: TLS)\n"
         "- destination (code IATA, ex: CDG)\n"
         "- date (YYYY-MM-DD)\n"
@@ -42,42 +35,28 @@ def _flight_need_info_answer() -> str:
     )
 
 
-# -----------------------------
-# Formatters (front-friendly)
-# -----------------------------
 def format_flight_data(raw_flights: List[dict]) -> List[dict]:
-    """
-    Transforme le JSON Amadeus Flight Offers en format léger pour React.
-    """
     formatted: List[dict] = []
-
     for flight in raw_flights or []:
         if not isinstance(flight, dict):
             continue
-
         itineraries = flight.get("itineraries") or []
         if not itineraries or not isinstance(itineraries, list) or not isinstance(itineraries[0], dict):
             continue
-
         segments = itineraries[0].get("segments") or []
         if not segments or not isinstance(segments, list):
             continue
-
         first_seg = segments[0] if isinstance(segments[0], dict) else None
         last_seg = segments[-1] if isinstance(segments[-1], dict) else None
         if not first_seg or not last_seg:
             continue
-
         dep = first_seg.get("departure") or {}
         arr = last_seg.get("arrival") or {}
-
         airline_codes = flight.get("validatingAirlineCodes") or []
         airline = airline_codes[0] if airline_codes else None
-
         price_obj = flight.get("price") or {}
         total = price_obj.get("total")
         currency = price_obj.get("currency")
-
         formatted.append(
             {
                 "id": flight.get("id"),
@@ -89,30 +68,20 @@ def format_flight_data(raw_flights: List[dict]) -> List[dict]:
                 "stops": max(len(segments) - 1, 0),
             }
         )
-
     return formatted
 
 
 def format_hotel_data(raw_hotels: Any) -> List[dict]:
-    """
-    Amadeus Hotel Offers v3:
-    - data[] items contain {"hotel": {...}, "offers": [...]}
-    On renvoie un format simple et stable pour le front.
-    """
     items = raw_hotels if isinstance(raw_hotels, list) else []
     formatted: List[dict] = []
-
     for item in items:
         if not isinstance(item, dict):
             continue
-
         hotel = item.get("hotel") or {}
         offers = item.get("offers") or []
-
         hotel_id = hotel.get("hotelId") or hotel.get("id")
         name = hotel.get("name")
         city_code = hotel.get("cityCode") or hotel.get("iataCode")
-
         cheapest_offer = None
         if isinstance(offers, list) and offers:
             def _offer_total(o: dict) -> float:
@@ -131,7 +100,6 @@ def format_hotel_data(raw_hotels: Any) -> List[dict]:
                     "checkInDate": best.get("checkInDate"),
                     "checkOutDate": best.get("checkOutDate"),
                 }
-
         formatted.append(
             {
                 "id": hotel_id,
@@ -140,24 +108,44 @@ def format_hotel_data(raw_hotels: Any) -> List[dict]:
                 "cheapestOffer": cheapest_offer,
             }
         )
-
     return formatted
 
 
-# -----------------------------
-# Main controller (single entry)
-# -----------------------------
+def _hotels_to_text(hotels: List[dict]) -> str:
+    lines: List[str] = []
+    for i, h in enumerate(hotels, start=1):
+        name = h.get("name") or "Hotel"
+        hid = h.get("id") or ""
+        offer = h.get("cheapestOffer") or {}
+        total = offer.get("total")
+        cur = offer.get("currency")
+        if total and cur:
+            lines.append(f"{i}. {name} — {total} {cur} (id: {hid})")
+        else:
+            lines.append(f"{i}. {name} (id: {hid})")
+    return "\n".join(lines)
+
+
+def _flights_to_text(flights: List[dict]) -> str:
+    lines: List[str] = []
+    for i, f in enumerate(flights, start=1):
+        airline = f.get("airline") or "-"
+        dep = f.get("departure") or {}
+        arr = f.get("arrival") or {}
+        price = f.get("price")
+        cur = f.get("currency") or ""
+        dep_iata = dep.get("iata") or "-"
+        arr_iata = arr.get("iata") or "-"
+        dep_at = dep.get("at") or "-"
+        arr_at = arr.get("at") or "-"
+        if price is not None:
+            lines.append(f"{i}. {airline} — {dep_iata} → {arr_iata} | {dep_at} → {arr_at} | {price} {cur}")
+        else:
+            lines.append(f"{i}. {airline} — {dep_iata} → {arr_iata} | {dep_at} → {arr_at}")
+    return "\n".join(lines)
+
+
 def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Contrat de réponse stable pour ton front :
-    {
-      "session_id": str,
-      "answer": str,
-      "flights": [],
-      "hotels": [],
-      "reserved": bool (optionnel)
-    }
-    """
     msg = (message or "").strip()
     lower = msg.lower()
 
@@ -166,89 +154,62 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
 
     session = get_session(session_id) or {}
 
-    # =========================
-    # 1) HOTELS (prioritaire si le texte contient hotel/hôtel)
-    # =========================
     if _is_hotel_intent(lower):
-        # UX rule: pas de dates => on demande (pas d'appel API)
         dates = DATE_RE.findall(msg)
         if len(dates) < 2:
-            return {"session_id": session_id, "answer": _hotel_need_dates_answer(), "flights": [], "hotels": []}
+            return {"session_id": session_id, "answer": _hotel_need_dates_answer()}
 
         try:
             query = extract_hotel_query(msg)
         except Exception:
             return {
                 "session_id": session_id,
-                "answer": "Je n’ai pas compris la ville et les dates. Exemple : hotel Toulouse 2026-02-10 2026-02-12",
-                "flights": [],
-                "hotels": [],
+                "answer": "Je n’ai pas compris la ville et les dates. Exemple : hotel London 2026-02-10 2026-02-12",
             }
 
         try:
             raw_hotels = search_hotels(query)
             hotels = format_hotel_data(raw_hotels)
-
             if not hotels:
                 return {
                     "session_id": session_id,
                     "answer": f"Aucun hôtel trouvé à {query['city_name']} du {query['checkin']} au {query['checkout']}.",
-                    "flights": [],
-                    "hotels": [],
                 }
 
-            return {
-                "session_id": session_id,
-                "answer": f"J’ai trouvé {len(hotels)} hôtels à {query['city_name']} du {query['checkin']} au {query['checkout']}.",
-                "flights": [],
-                "hotels": hotels,
-            }
-
+            answer = (
+                f"J’ai trouvé {len(hotels)} hôtels à {query['city_name']} du {query['checkin']} au {query['checkout']}.\n\n"
+                f"{_hotels_to_text(hotels)}"
+            )
+            return {"session_id": session_id, "answer": answer}
         except Exception:
-            return {
-                "session_id": session_id,
-                "answer": "Erreur lors de la recherche d’hôtels (provider indisponible ou paramètres invalides).",
-                "flights": [],
-                "hotels": [],
-            }
+            return {"session_id": session_id, "answer": "Erreur lors de la recherche d’hôtels."}
 
-    # =========================
-    # 2) FLIGHTS (search / book) via IA intent
-    # =========================
-    # Si tu veux garder ton système "book", on utilise process_user_message.
-    # Sinon, tu peux ignorer intent et faire direct extract_flight_query.
     try:
-        result = process_user_message(msg)  # doit renvoyer intent + infos
-        intent = result.get("intent", "search")
+        intent_data = process_user_message(msg)
+        intent = intent_data.get("intent", "search")
     except Exception:
-        # fallback: simple mode search
         intent = "search"
-        result = {}
+        intent_data = {}
 
-    # ---- BOOK ----
     if intent == "book":
         flights = session.get("flights", [])
-        last_query = session.get("last_query", {})
+        last_query = session.get("last_query", {}) or {}
 
         if not flights:
-            return {
-                "session_id": session_id,
-                "answer": "❌ Aucune recherche en cours. Cherche d’abord un vol (ex: vol TLS CDG 2026-02-10).",
-                "flights": [],
-                "hotels": [],
-            }
+            return {"session_id": session_id, "answer": "Aucune recherche en cours. Cherche d’abord un vol."}
 
-        flight_index = result.get("flight_index", 1) or 1
+        flight_index = intent_data.get("flight_index", 1) or 1
         try:
             idx = max(int(flight_index) - 1, 0)
         except Exception:
             idx = 0
+
         selected = flights[min(idx, len(flights) - 1)]
 
         reservation = {
             "id": str(uuid.uuid4())[:8],
-            "nom": result.get("nom") or "Non renseigné",
-            "prenom": result.get("prenom") or "Non renseigné",
+            "nom": intent_data.get("nom") or "Non renseigné",
+            "prenom": intent_data.get("prenom") or "Non renseigné",
             "lieuD": (selected.get("departure") or {}).get("iata"),
             "lieuA": (selected.get("arrival") or {}).get("iata"),
             "dateD": (selected.get("departure") or {}).get("at"),
@@ -260,78 +221,53 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
         try:
             save_reservation_to_sheet(reservation)
             update_session(session_id, {"flights": [], "last_query": None, "state": "idle"})
-
-            return {
-                "session_id": session_id,
-                "answer": (
-                    "✅ Réservation confirmée !\n"
-                    f"Vol {selected.get('airline')} : {reservation['lieuD']} → {reservation['lieuA']}\n"
-                    f"Départ: {reservation['dateD']}\n"
-                    f"Prix: {reservation['prix']}\n"
-                    f"Référence: {reservation['id']}"
-                ),
-                "flights": [],
-                "hotels": [],
-                "reserved": True,
-            }
+            answer = (
+                "Réservation confirmée.\n"
+                f"Vol {selected.get('airline')} : {reservation['lieuD']} → {reservation['lieuA']}\n"
+                f"Départ: {reservation['dateD']}\n"
+                f"Prix: {reservation['prix']}\n"
+                f"Référence: {reservation['id']}"
+            )
+            return {"session_id": session_id, "answer": answer}
         except Exception as e:
-            return {
-                "session_id": session_id,
-                "answer": f"❌ Erreur lors de la réservation : {str(e)}",
-                "flights": flights,
-                "hotels": [],
-            }
+            return {"session_id": session_id, "answer": f"Erreur lors de la réservation: {str(e)}"}
 
-    # ---- SEARCH (default) ----
-    # Si process_user_message n'a pas rempli result, on repasse sur extract_flight_query.
     try:
-        if not result or "originLocationCode" not in result:
-            result = extract_flight_query(msg)
-            result["max"] = 5
-
-        raw_flights = search_flights(
-            {
-                "originLocationCode": result["originLocationCode"],
-                "destinationLocationCode": result["destinationLocationCode"],
-                "departureDate": result["departureDate"],
-                "adults": int(result.get("adults", 1)),
-                "max": int(result.get("max", 5)),
+        if intent_data and intent_data.get("intent") == "search" and intent_data.get("originLocationCode"):
+            q = {
+                "originLocationCode": intent_data["originLocationCode"],
+                "destinationLocationCode": intent_data["destinationLocationCode"],
+                "departureDate": intent_data["departureDate"],
+                "adults": int(intent_data.get("adults", 1)),
+                "max": 5,
             }
-        )
+        else:
+            extracted = extract_flight_query(msg)
+            q = {
+                "originLocationCode": extracted["originLocationCode"],
+                "destinationLocationCode": extracted["destinationLocationCode"],
+                "departureDate": extracted["departureDate"],
+                "adults": int(extracted.get("adults", 1)),
+                "max": 5,
+            }
+
+        raw_flights = search_flights(q)
         flights = format_flight_data(raw_flights)
 
         if not flights:
             return {
                 "session_id": session_id,
-                "answer": f"Aucun vol trouvé de {result.get('originLocationCode')} vers {result.get('destinationLocationCode')}.",
-                "flights": [],
-                "hotels": [],
+                "answer": f"Aucun vol trouvé de {q['originLocationCode']} vers {q['destinationLocationCode']} le {q['departureDate']}.",
             }
 
-        update_session(
-            session_id,
-            {"flights": flights, "last_query": result, "state": "awaiting_reservation"},
-        )
-
-        # message UX simple (sans emojis si tu préfères)
-        lines = []
-        for i, f in enumerate(flights):
-            lines.append(
-                f"Vol {i+1} - {f.get('airline')} | {f['departure']['iata']} → {f['arrival']['iata']} | {f.get('price')} {f.get('currency')}"
-            )
+        update_session(session_id, {"flights": flights, "last_query": q, "state": "awaiting_reservation"})
 
         answer = (
-            f"J’ai trouvé {len(flights)} vols pour {result['destinationLocationCode']} le {result['departureDate']}.\n"
-            + "\n".join(lines)
-            + "\n\nDis : \"Je réserve le vol 1\" pour réserver."
+            f"J’ai trouvé {len(flights)} vols de {q['originLocationCode']} vers {q['destinationLocationCode']} le {q['departureDate']}.\n\n"
+            f"{_flights_to_text(flights)}\n\n"
+            "Dis : \"Je réserve le vol 1\" pour réserver."
         )
-
-        return {"session_id": session_id, "answer": answer, "flights": flights, "hotels": []}
+        return {"session_id": session_id, "answer": answer}
 
     except Exception:
-        return {
-            "session_id": session_id,
-            "answer": _flight_need_info_answer(),
-            "flights": [],
-            "hotels": [],
-        }
+        return {"session_id": session_id, "answer": _flight_need_info_answer()}

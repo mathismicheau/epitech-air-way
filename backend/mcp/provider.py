@@ -6,9 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ======================
 # CONFIG
-# ======================
 CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID")
 CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET")
 
@@ -20,9 +18,7 @@ HOTEL_LIST_URL = "https://test.api.amadeus.com/v1/reference-data/locations/hotel
 HOTEL_OFFERS_URL = "https://test.api.amadeus.com/v3/shopping/hotel-offers"
 
 
-# ======================
 # AUTH
-# ======================
 def get_token() -> str:
     if not CLIENT_ID or not CLIENT_SECRET:
         raise RuntimeError("AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET manquants dans le .env")
@@ -41,20 +37,8 @@ def get_token() -> str:
     return r.json()["access_token"]
 
 
-# ======================
 # FLIGHTS
-# ======================
 def search_flights(query: dict) -> list[dict]:
-    """
-    Attendu (minimum):
-    {
-      "originLocationCode": "TLS",
-      "destinationLocationCode": "CDG",
-      "departureDate": "2026-02-10",
-      "adults": 1,
-      "max": 5 (optionnel)
-    }
-    """
     token = get_token()
 
     r = requests.get(
@@ -67,9 +51,7 @@ def search_flights(query: dict) -> list[dict]:
     return r.json().get("data", [])
 
 
-# ======================
 # HOTELS
-# ======================
 def city_name_to_city_code(city_name: str) -> str:
     token = get_token()
 
@@ -97,17 +79,6 @@ def city_name_to_city_code(city_name: str) -> str:
 
 
 def search_hotels(query: dict) -> list[dict]:
-    """
-    Attendu:
-    {
-      "city_name": "Toulouse",
-      "checkin": "2026-02-10",
-      "checkout": "2026-02-12",
-      "adults": 2,
-      "rooms": 1
-    }
-    Retour: liste d'objets (Amadeus hotel offers v3)
-    """
     token = get_token()
 
     city_code = city_name_to_city_code(query["city_name"])
