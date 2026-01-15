@@ -452,7 +452,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
             f"✈️ Vols trouvés de {q['originLocationCode']} vers {q['destinationLocationCode']} le {q['departureDate']} "
             f"(triés du moins cher au plus cher) :\n\n"
             f"{_flights_to_text(flights)}\n\n"
-            'Dis : "Je réserve le vol 1" pour réserver.'
         )
         return {"session_id": session_id, "answer": answer}
 
