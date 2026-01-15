@@ -79,6 +79,13 @@ def city_name_to_city_code(city_name: str) -> str:
 
 
 def search_hotels(query: dict) -> list[dict]:
+    """
+    Retourne la structure brute de Amadeus v3/hotel-offers (data list).
+    Le controller s'occupe de:
+    - choisir l'offre la moins chère
+    - trier
+    - formater proprement
+    """
     token = get_token()
 
     city_code = city_name_to_city_code(query["city_name"])

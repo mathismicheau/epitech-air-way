@@ -8,6 +8,7 @@ import ollama
 
 MODEL_NAME = "llama3"
 
+
 def _safe_set_french_locale() -> None:
     try:
         locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
@@ -44,8 +45,11 @@ def ask_model_to_process(message: str) -> dict:
         "   - originLocationCode / destinationLocationCode : codes IATA (3 lettres majuscules)\n"
         "   - departureDate : YYYY-MM-DD\n"
         "   - adults : nombre (1 par défaut)\n"
-        "3. Si intent == 'book' : l'utilisateur veut confirmer une réservation (ex: 'Réserve ce vol', 'Je prends celui-là').\n"
-        "4. Format de date : YYYY-MM-DD.\n"
+        "3) Si intent == 'book' : réponds en JSON à plat avec UNIQUEMENT ces clés :\n"
+        "   intent, flight_index, nom, prenom\n"
+        "   - flight_index : numéro du vol que l'utilisateur veut réserver (1 par défaut)\n"
+        "   - nom / prenom : si l'utilisateur les donne dans la phrase, sinon null\n"
+        "4) Tu réponds UNIQUEMENT en JSON valide.\n"
         f"Phrase : {message}"
     )
 
@@ -79,7 +83,10 @@ def process_user_message(message: str) -> dict:
         return data
 
     if intent == "book":
-        return {"intent": "book"}
+        # Laisse passer les champs facultatifs (flight_index/nom/prenom) si présents
+        if "flight_index" not in data or data.get("flight_index") in (None, ""):
+            data["flight_index"] = 1
+        return data
 
     return {"intent": "unknown", "message": "Je n'ai pas compris si vous voulez chercher ou réserver."}
 
