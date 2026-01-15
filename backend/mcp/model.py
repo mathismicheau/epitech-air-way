@@ -83,7 +83,6 @@ def process_user_message(message: str) -> dict:
         return data
 
     if intent == "book":
-        # Laisse passer les champs facultatifs (flight_index/nom/prenom) si présents
         if "flight_index" not in data or data.get("flight_index") in (None, ""):
             data["flight_index"] = 1
         return data

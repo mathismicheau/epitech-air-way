@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# CONFIG
 CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID")
 CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET")
 
@@ -18,7 +17,6 @@ HOTEL_LIST_URL = "https://test.api.amadeus.com/v1/reference-data/locations/hotel
 HOTEL_OFFERS_URL = "https://test.api.amadeus.com/v3/shopping/hotel-offers"
 
 
-# AUTH
 def get_token() -> str:
     if not CLIENT_ID or not CLIENT_SECRET:
         raise RuntimeError("AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET manquants dans le .env")
@@ -36,8 +34,6 @@ def get_token() -> str:
     r.raise_for_status()
     return r.json()["access_token"]
 
-
-# FLIGHTS
 def search_flights(query: dict) -> list[dict]:
     token = get_token()
 
@@ -50,8 +46,6 @@ def search_flights(query: dict) -> list[dict]:
     r.raise_for_status()
     return r.json().get("data", [])
 
-
-# HOTELS
 def city_name_to_city_code(city_name: str) -> str:
     token = get_token()
 
@@ -90,7 +84,6 @@ def search_hotels(query: dict) -> list[dict]:
 
     city_code = city_name_to_city_code(query["city_name"])
 
-    # 1) Liste des hôtels (IDs) via by-city
     r1 = requests.get(
         HOTEL_LIST_URL,
         headers={"Authorization": f"Bearer {token}"},
@@ -105,7 +98,6 @@ def search_hotels(query: dict) -> list[dict]:
     if not hotel_ids:
         return []
 
-    # 2) Offres/prix via v3 hotel-offers
     r2 = requests.get(
         HOTEL_OFFERS_URL,
         headers={"Authorization": f"Bearer {token}"},

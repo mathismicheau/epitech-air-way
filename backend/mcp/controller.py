@@ -62,9 +62,6 @@ def _flight_need_info_answer() -> str:
     )
 
 
-# ---------------------------
-# FORMAT / TRI DES DONNÉES
-# ---------------------------
 
 def format_flight_data(raw_flights: List[dict]) -> List[dict]:
     formatted: List[dict] = []
@@ -106,11 +103,10 @@ def format_flight_data(raw_flights: List[dict]) -> List[dict]:
                 "priceValue": _safe_float(total),
                 "currency": currency,
                 "stops": max(len(segments) - 1, 0),
-                "duration": it0.get("duration"),  # ex: PT1H20M (si présent)
+                "duration": it0.get("duration"),
             }
         )
 
-    # TRI : du moins cher au plus cher
     formatted.sort(key=lambda x: x.get("priceValue", 10**18))
     return formatted
 
@@ -130,7 +126,6 @@ def format_hotel_data(raw_hotels: Any) -> List[dict]:
         name = hotel.get("name")
         city_code = hotel.get("cityCode") or hotel.get("iataCode")
 
-        # Choisir l'offre la moins chère
         cheapest_offer = None
         room_details = None
 
@@ -153,8 +148,6 @@ def format_hotel_data(raw_hotels: Any) -> List[dict]:
                     "checkOutDate": best.get("checkOutDate"),
                 }
 
-                # ROOM INFO (si dispo)
-                # Amadeus renvoie parfois "room", "policies", "rateFamilyEstimated", etc.
                 room = best.get("room")
                 policies = best.get("policies")
                 board = best.get("boardType") or best.get("boardTypeCode")
@@ -182,7 +175,6 @@ def format_hotel_data(raw_hotels: Any) -> List[dict]:
                     if policies.get("paymentType"):
                         room_details["paymentType"] = policies.get("paymentType")
 
-                # Nettoyage : si rien d'intéressant
                 if not room_details:
                     room_details = None
 
@@ -197,14 +189,9 @@ def format_hotel_data(raw_hotels: Any) -> List[dict]:
             }
         )
 
-    # TRI : du moins cher au plus cher
     formatted.sort(key=lambda x: x.get("priceValue", 10**18))
     return formatted
 
-
-# ---------------------------
-# RENDU TEXTE (PROPRE)
-# ---------------------------
 
 def _flights_to_text(flights: List[dict]) -> str:
     lines: List[str] = []
@@ -252,8 +239,7 @@ def _hotels_to_text(hotels: List[dict]) -> str:
         if checkin and checkout:
             lines.append(f"   - Dates : {checkin} → {checkout}")
 
-        # On n'affiche pas les room details ici, on propose un follow-up si dispo
-        lines.append("")  # ligne vide entre hôtels
+        lines.append("")
 
     return "\n".join(lines).rstrip()
 
@@ -280,16 +266,13 @@ def _room_details_to_text(room_details_by_hotel: List[dict]) -> str:
         if details.get("cancellation"):
             lines.append(f"   - Annulation : {details.get('cancellation')}")
         if details.get("description"):
-            # on garde court
             desc = str(details.get("description"))
             lines.append(f"   - Description : {desc[:220]}{'…' if len(desc) > 220 else ''}")
         lines.append("")
     return "\n".join(lines).rstrip()
 
 
-# ---------------------------
 # MAIN HANDLER /CHAT
-# ---------------------------
 
 def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any]:
     msg = (message or "").strip()
@@ -300,8 +283,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
 
     session = get_session(session_id) or {}
 
-    # ---- FOLLOW-UP : room details ----
-    # Si le bot a proposé "Tu veux les infos de la chambre ?" et que l'utilisateur répond oui/non
     if session.get("state") == "awaiting_room_details":
         if _is_yes(msg):
             payload = session.get("room_details_payload") or []
@@ -322,7 +303,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
             "answer": "Tu veux que je t’affiche les infos de la chambre ? Réponds juste par oui / non.",
         }
 
-    # ---- HOTEL INTENT (keyword simple) ----
     if _is_hotel_intent(lower):
         dates = DATE_RE.findall(msg)
         if len(dates) < 2:
@@ -346,7 +326,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
                     "answer": f"Aucun hôtel trouvé à {query['city_name']} du {query['checkin']} au {query['checkout']}.",
                 }
 
-            # Préparer un payload room details (si on en a)
             with_room = [
                 {"name": h.get("name"), "roomDetails": h.get("roomDetails")}
                 for h in hotels
@@ -373,7 +352,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
         except Exception:
             return {"session_id": session_id, "answer": "Erreur lors de la recherche d’hôtels."}
 
-    # ---- INTENT VIA IA (vol: search/book) ----
     try:
         intent_data = process_user_message(msg)
         intent = intent_data.get("intent", "search")
@@ -381,7 +359,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
         intent = "search"
         intent_data = {}
 
-    # ---- BOOK ----
     if intent == "book":
         flights = session.get("flights", [])
         query = session.get("last_query", {})
@@ -441,7 +418,6 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
                 "hotels": [],
             }
 
-    # ---- SEARCH (default) ----
     try:
         if intent_data and intent_data.get("intent") == "search" and intent_data.get("originLocationCode"):
             q = {
