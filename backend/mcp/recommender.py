@@ -5,8 +5,10 @@ def get_activity_suggestions(message: str, session_id: str = None):
     """Génère des suggestions touristiques via Llama 3."""
     system_prompt = (
         "Tu es Wingman, un guide de voyage expert. L'utilisateur te demande des conseils, "
-        "des idées de visites ou des suggestions d'activités. Réponds de manière "
-        "chaleureuse en français avec 3-4 suggestions précises et des emojis."
+        "des idées de visites, des suggestions d'activités ou just il veut just avoir une conversation. Si demande des conseils, idées de visites ou suggestions, réponds de manière "
+        "chaleureuse en français avec 3-4 suggestions précises et des emojis mais pas trop d'emojis."
+        "Si non, donne une réponse courte."
+        
     )
     try:
         response = ollama.chat(

@@ -6,13 +6,9 @@ import locale
 
 import ollama
 
-# ✅ Un seul modèle (celui que tu as déjà et qui marche chez toi)
 MODEL_NAME = "llama3"
 
 
-# -----------------------
-# Locale/date (juste pour aider l'IA)
-# -----------------------
 def _safe_set_french_locale() -> None:
     try:
         locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
@@ -20,7 +16,6 @@ def _safe_set_french_locale() -> None:
         try:
             locale.setlocale(locale.LC_TIME, "fr_FR")
         except Exception:
-            # Si la locale FR n'existe pas sur la machine, on ignore
             pass
 
 
@@ -32,9 +27,6 @@ def get_current_date() -> str:
     return f"Aujourd'hui nous sommes le {now.strftime('%A %d %B %Y')}."
 
 
-# -----------------------
-# 1) INTENT (vol) : search vs book
-# -----------------------
 def ask_model_to_process(message: str) -> dict:
     """
     Détermine l'intention de l'utilisateur:
@@ -45,15 +37,22 @@ def ask_model_to_process(message: str) -> dict:
 
     prompt = (
         f"{current_date}\n"
-        "Analyse le message de l'utilisateur pour déterminer s'il veut RECHERCHER un vol ou RÉSERVER un vol.\n\n"
+        "Analyse le message de l'utilisateur pour déterminer s'il veut (RECHERCHER un vol ou RÉSERVER un vol) ou (RECHERCHER un hotel) ou (avoir des suggestions ou avoir une conversation).\n\n"
         "CONSIGNES JSON STRICTES :\n"
-        "1) Ajoute une clé 'intent' qui vaut soit 'search' soit 'book'.\n"
+        "1) Ajoute une clé 'intent' qui vaut soit 'search' soit 'book' soit 'advice' soit 'hotel'.\n"
         "2) Si intent == 'search' : réponds en JSON à plat avec UNIQUEMENT ces clés :\n"
         "   intent, originLocationCode, destinationLocationCode, departureDate, adults.\n"
         "   - originLocationCode / destinationLocationCode : codes IATA (3 lettres majuscules)\n"
         "   - departureDate : YYYY-MM-DD\n"
         "   - adults : nombre (1 par défaut)\n"
-        "3) Si intent == 'book' : réponds en JSON à plat avec UNIQUEMENT : intent.\n"
+        "3) Si intent == 'book' : réponds en JSON à plat avec UNIQUEMENT ces clés :\n"
+        "   intent, flight_index, nom, prenom\n"
+        "   - flight_index : numéro du vol que l'utilisateur veut réserver (1 par défaut)\n"
+        "   - nom / prenom : si l'utilisateur les donne dans la phrase, sinon null\n"
+        "4) si intent == 'advice' : réponds en JSON à plat avec UNIQUEMENT la clé: intent\n"
+        "5) si intent == 'hotel' : réponds en JSON à plat avec UNIQUEMENT la clés : intent\n"
+
+        "6) Tu réponds UNIQUEMENT en JSON valide.\n"
         f"Phrase : {message}"
     )
 
@@ -80,23 +79,22 @@ def process_user_message(message: str) -> dict:
     intent = data.get("intent")
 
     if intent == "search":
-        # Validation minimale des champs vols
         if not data.get("originLocationCode") or not data.get("destinationLocationCode") or not data.get("departureDate"):
             return {"intent": "error", "message": "Détails de recherche manquants (départ/destination/date)."}
-        # default adults
         if "adults" not in data or data["adults"] in (None, ""):
             data["adults"] = 1
         return data
 
     if intent == "book":
-        return {"intent": "book"}
+        # Laisse passer les champs facultatifs (flight_index/nom/prenom) si présents
+        if "flight_index" not in data or data.get("flight_index") in (None, ""):
+            data["flight_index"] = 1
+        return data
+    
 
     return {"intent": "unknown", "message": "Je n'ai pas compris si vous voulez chercher ou réserver."}
 
 
-# -----------------------
-# 2) EXTRACTION VOL pure (utile si tu bypass intent)
-# -----------------------
 def extract_flight_query(message: str) -> dict:
     prompt = (
         "Tu extrais des informations de vol.\n"
@@ -130,9 +128,6 @@ def extract_flight_query(message: str) -> dict:
     }
 
 
-# -----------------------
-# 3) EXTRACTION HOTEL (Amadeus) : ville + dates obligatoires
-# -----------------------
 def extract_hotel_query(message: str) -> dict:
     prompt = (
         "Tu extrais des informations d’hôtel.\n"
@@ -155,7 +150,6 @@ def extract_hotel_query(message: str) -> dict:
 
     data = json.loads(response["message"]["content"])
 
-    # defaults
     adults = data.get("adults", 2)
     rooms = data.get("rooms", 1)
 
@@ -165,7 +159,6 @@ def extract_hotel_query(message: str) -> dict:
 
     if not city_name:
         raise ValueError("Ville manquante pour la recherche d’hôtel.")
-    # dates obligatoires pour déclencher la recherche (le controller peut déjà bloquer avant)
     if not checkin or not checkout:
         raise ValueError("Dates checkin / checkout manquantes (YYYY-MM-DD).")
 

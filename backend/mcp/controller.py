@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import ollama
-from mcp.model import MODEL_NAME
-from mcp.recommender import get_activity_suggestions
-
 import re
 import uuid
 from typing import Any, Dict, List, Optional
 
 from mcp.session import get_session, update_session
 from mcp.googleProvider import save_reservation_to_sheet
+from mcp.recommender import get_activity_suggestions
+
 
 # Extraction IA (new)
-from mcp.model import extract_flight_query, extract_hotel_query, process_user_message  # garde process_user_message si tu l'utilises
+from mcp.model import extract_flight_query, extract_hotel_query, process_user_message, ask_model_to_process  # garde process_user_message si tu l'utilises
 # Providers (Amadeus)
 from mcp.provider import search_flights, search_hotels
 
@@ -167,17 +165,15 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
 
     if not session_id:
         session_id = str(uuid.uuid4())
-    intent_prompt = (
-        "Réponds par 'CONSEIL' si l'utilisateur veut des idées de visites, des suggestions "
-        "ou simplement discuter. Réponds 'RESERVE' s'il veut chercher/réserver un vol ou un hôtel. "
-        f"Message : {msg}"
-    )
     try:
-        check = ollama.chat(model=MODEL_NAME, messages=[{'role': 'user', 'content': intent_prompt}])
-        if "CONSEIL" in check['message']['content'].upper():
+        analysis = ask_model_to_process(msg)
+        intent = analysis.get("intent")
+        if intent == "advice":
             return get_activity_suggestions(msg, session_id)
-    except:
-        pass
+            
+    except Exception:
+        pass 
+
     session = get_session(session_id) or {}
 
     # =========================
@@ -190,7 +186,10 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
             return {"session_id": session_id, "answer": _hotel_need_dates_answer(), "flights": [], "hotels": []}
 
         try:
-            query = extract_hotel_query(msg)
+            analysis = ask_model_to_process(msg)
+            intent = analysis.get("intent")
+            if intent == "hotel":
+                 query=extract_hotel_query(msg)
         except Exception:
             return {
                 "session_id": session_id,
