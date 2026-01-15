@@ -191,64 +191,65 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
         intent = "search"
         intent_data = {}
 
+    # ---- BOOK ----
     if intent == "book":
-
-            flights = session.get("flights", [])
-            query = session.get("last_query", {})
-            
-            # Vérifier qu'on a des vols en session
-            if not flights:
-                return {
-                    "session_id": session_id,
-                    "answer": "❌ Aucune recherche en cours. Cherchez d'abord un vol !",
-                    "flights": []
-                }
-            
-            # Récupérer le vol choisi (par défaut le premier)
-            flight_index = result.get("flight_index", 1) or 1
-            selected_flight = flights[min(int(flight_index) - 1, len(flights) - 1)]
-            
-            # Créer la réservation
-            reservation = {
-                "id": str(uuid.uuid4())[:8],
-                "nom": result.get("nom") or "Non renseigné",
-                "prenom": result.get("prenom") or "Non renseigné",
-                "lieuD": selected_flight["departure"]["iata"],
-                "lieuA": selected_flight["arrival"]["iata"],
-                "dateD": selected_flight["departure"]["at"],
-                "dateA": selected_flight["arrival"]["at"],
-                "nbr": query.get("adults", 1),
-                "prix": f"{selected_flight['price']}{selected_flight['currency']}"
+        flights = session.get("flights", [])
+        query = session.get("last_query", {})
+        
+        # Vérifier qu'on a des vols en session
+        if not flights:
+            return {
+                "session_id": session_id,
+                "answer": "❌ Aucune recherche en cours. Cherchez d'abord un vol !",
+                "flights": [],
+                "hotels": []
             }
+        
+        # Récupérer le vol choisi (par défaut le premier)
+        flight_index = intent_data.get("flight_index", 1) or 1  # <- intent_data au lieu de result
+        selected_flight = flights[min(int(flight_index) - 1, len(flights) - 1)]
+        
+        # Créer la réservation
+        reservation = {
+            "id": str(uuid.uuid4())[:8],
+            "nom": intent_data.get("nom") or "Non renseigné",  # <- intent_data
+            "prenom": intent_data.get("prenom") or "Non renseigné",  # <- intent_data
+            "lieuD": selected_flight["departure"]["iata"],
+            "lieuA": selected_flight["arrival"]["iata"],
+            "dateD": selected_flight["departure"]["at"],
+            "dateA": selected_flight["arrival"]["at"],
+            "nbr": query.get("adults", 1),
+            "prix": f"{selected_flight['price']}{selected_flight['currency']}"
+        }
 
-            # <- AJOUTER À PARTIR D'ICI
-            # Sauvegarder dans Google Sheets
-            try:
-                save_reservation_to_sheet(reservation)
-                
-                # Reset session
-                update_session(session_id, {"flights": [], "last_query": None, "state": "idle"})
-                
-                return {
-                    "session_id": session_id,
-                    "answer": (
-                        f"✅ Réservation confirmée !\n"
-                        f"Vol {selected_flight['airline']} : {reservation['lieuD']} → {reservation['lieuA']}\n"
-                        f"Départ: {reservation['dateD']}\n"
-                        f"Prix: {reservation['prix']}\n"
-                        f"Référence: {reservation['id']}"
-                    ),
-                    "flights": [],
-                    "hotels": [],
-                    "reserved": True
-                }
-            except Exception as e:
-                return {
-                    "session_id": session_id,
-                    "answer": f"❌ Erreur lors de la réservation: {str(e)}",
-                    "flights": flights,
-                    "hotels": []
-                }
+        # Sauvegarder dans Google Sheets
+        try:
+            save_reservation_to_sheet(reservation)
+            
+            # Reset session
+            update_session(session_id, {"flights": [], "last_query": None, "state": "idle"})
+            
+            return {
+                "session_id": session_id,
+                "answer": (
+                    f"✅ Réservation confirmée !\n"
+                    f"Vol {selected_flight['airline']} : {reservation['lieuD']} → {reservation['lieuA']}\n"
+                    f"Départ: {reservation['dateD']}\n"
+                    f"Prix: {reservation['prix']}\n"
+                    f"Référence: {reservation['id']}"
+                ),
+                "flights": [],
+                "hotels": [],
+                "reserved": True
+            }
+        except Exception as e:
+            return {
+                "session_id": session_id,
+                "answer": f"❌ Erreur lors de la réservation: {str(e)}",
+                "flights": flights,
+                "hotels": []
+            }
+            
     # ---- SEARCH (default) ----
     # Si process_user_message n'a pas rempli result, on repasse sur extract_flight_query.
 
