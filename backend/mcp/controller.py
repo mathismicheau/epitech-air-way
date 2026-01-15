@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import ollama
+from mcp.model import MODEL_NAME
+from mcp.recommender import get_activity_suggestions
+
 import re
 import uuid
 from typing import Any, Dict, List, Optional
@@ -163,7 +167,17 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
 
     if not session_id:
         session_id = str(uuid.uuid4())
-
+    intent_prompt = (
+        "Réponds par 'CONSEIL' si l'utilisateur veut des idées de visites, des suggestions "
+        "ou simplement discuter. Réponds 'RESERVE' s'il veut chercher/réserver un vol ou un hôtel. "
+        f"Message : {msg}"
+    )
+    try:
+        check = ollama.chat(model=MODEL_NAME, messages=[{'role': 'user', 'content': intent_prompt}])
+        if "CONSEIL" in check['message']['content'].upper():
+            return get_activity_suggestions(msg, session_id)
+    except:
+        pass
     session = get_session(session_id) or {}
 
     # =========================
