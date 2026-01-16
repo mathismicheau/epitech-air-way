@@ -5,8 +5,9 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from mcp.session import get_session, update_session
+from mcp.recommender import get_activity_suggestions
 from mcp.googleProvider import save_reservation_to_sheet
-from mcp.model import extract_flight_query, extract_hotel_query, process_user_message
+from mcp.model import ask_model_to_process, extract_flight_query, extract_hotel_query, process_user_message
 from mcp.provider import search_flights, search_hotels
 
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -298,16 +299,30 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
     if not session_id:
         session_id = str(uuid.uuid4())
 
+    # 1. ANALYSE DE L'INTENTION PAR L'IA (LLM)
+    analysis = {}
+    try:
+        analysis = ask_model_to_process(msg)
+        intent = analysis.get("intent")
+        
+        # Cas spécifique : Suggestions d'activités
+        if intent == "advice":
+            return get_activity_suggestions(msg, session_id)
+            
+    except Exception as e:
+        print(f"Erreur analyse IA : {e}")
+        intent = None
+
+    # Récupération de la session actuelle
     session = get_session(session_id) or {}
 
-    # ---- FOLLOW-UP : room details ----
-    # Si le bot a proposé "Tu veux les infos de la chambre ?" et que l'utilisateur répond oui/non
+    # 2. FOLLOW-UP : Infos de chambre (Si on attendait une réponse oui/non)
     if session.get("state") == "awaiting_room_details":
         if _is_yes(msg):
             payload = session.get("room_details_payload") or []
             if not payload:
                 update_session(session_id, {"state": "idle", "room_details_payload": []})
-                return {"session_id": session_id, "answer": "Je n’ai pas d’infos chambre supplémentaires à afficher."}
+                return {"session_id": session_id, "answer": "Je n’ai pas d’infos chambre supplémentaires."}
 
             answer = _room_details_to_text(payload)
             update_session(session_id, {"state": "idle", "room_details_payload": []})
@@ -315,28 +330,16 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
 
         if _is_no(msg):
             update_session(session_id, {"state": "idle", "room_details_payload": []})
-            return {"session_id": session_id, "answer": "Ok, je te laisse les résultats comme ça."}
+            return {"session_id": session_id, "answer": "Ok, je reste sur ces résultats."}
 
-        return {
-            "session_id": session_id,
-            "answer": "Tu veux que je t’affiche les infos de la chambre ? Réponds juste par oui / non.",
-        }
-
-    # ---- HOTEL INTENT (keyword simple) ----
-    if _is_hotel_intent(lower):
+    # 3. INTENTION HÔTEL (Détectée par mot-clé OU par l'IA)
+    if _is_hotel_intent(lower) or intent == "hotel":
         dates = DATE_RE.findall(msg)
         if len(dates) < 2:
             return {"session_id": session_id, "answer": _hotel_need_dates_answer()}
 
         try:
             query = extract_hotel_query(msg)
-        except Exception:
-            return {
-                "session_id": session_id,
-                "answer": "Je n’ai pas compris la ville et les dates. Exemple : hotel London 2026-02-10 2026-02-12",
-            }
-
-        try:
             raw_hotels = search_hotels(query)
             hotels = format_hotel_data(raw_hotels)
 
@@ -346,139 +349,95 @@ def handle_chat(message: str, session_id: Optional[str] = None) -> Dict[str, Any
                     "answer": f"Aucun hôtel trouvé à {query['city_name']} du {query['checkin']} au {query['checkout']}.",
                 }
 
-            # Préparer un payload room details (si on en a)
+            # Préparation des détails de chambre pour le follow-up
             with_room = [
                 {"name": h.get("name"), "roomDetails": h.get("roomDetails")}
-                for h in hotels
-                if h.get("roomDetails")
+                for h in hotels if h.get("roomDetails")
             ]
 
             answer = (
-                f"🏨 Hôtels trouvés à {query['city_name']} du {query['checkin']} au {query['checkout']} "
-                f"(triés du moins cher au plus cher) :\n\n"
+                f"🏨 Hôtels trouvés à {query['city_name']} du {query['checkin']} au {query['checkout']} :\n\n"
                 f"{_hotels_to_text(hotels)}"
             )
 
             if with_room:
-                answer += "\n\nJ’ai aussi des infos sur la chambre (lit, conditions, etc.). Tu veux que je te les affiche ? (oui/non)"
-                update_session(
-                    session_id,
-                    {"state": "awaiting_room_details", "room_details_payload": with_room[:5]},
-                )
+                answer += "\n\nJ'ai trouvé des détails sur les chambres (lits, conditions). Voulez-vous les voir ? (oui/non)"
+                update_session(session_id, {
+                    "state": "awaiting_room_details", 
+                    "room_details_payload": with_room[:5]
+                })
             else:
                 update_session(session_id, {"state": "idle", "room_details_payload": []})
 
             return {"session_id": session_id, "answer": answer}
+        except Exception as e:
+            return {"session_id": session_id, "answer": f"Erreur lors de la recherche d'hôtel : {str(e)}"}
 
-        except Exception:
-            return {"session_id": session_id, "answer": "Erreur lors de la recherche d’hôtels."}
-
-    # ---- INTENT VIA IA (vol: search/book) ----
-    try:
-        intent_data = process_user_message(msg)
-        intent = intent_data.get("intent", "search")
-    except Exception:
-        intent = "search"
-        intent_data = {}
-
-    # ---- BOOK ----
+    # 4. INTENTION RÉSERVATION DE VOL (Book)
     if intent == "book":
         flights = session.get("flights", [])
-        query = session.get("last_query", {})
+        last_q = session.get("last_query", {})
 
         if not flights:
-            return {
-                "session_id": session_id,
-                "answer": "❌ Aucune recherche en cours. Cherche d'abord un vol !",
-                "flights": [],
-                "hotels": [],
+            return {"session_id": session_id, "answer": "❌ Cherchez d'abord un vol avant de réserver !"}
+
+        try:
+            # On récupère les infos via l'analyse déjà faite par ask_model_to_process
+            idx_str = analysis.get("flight_index", 1)
+            idx = max(int(idx_str) - 1, 0)
+            selected = flights[min(idx, len(flights) - 1)]
+
+            reservation = {
+                "id": str(uuid.uuid4())[:8],
+                "nom": analysis.get("nom") or "Inconnu",
+                "prenom": analysis.get("prenom") or "Inconnu",
+                "lieuD": selected["departure"]["iata"],
+                "lieuA": selected["arrival"]["iata"],
+                "dateD": selected["departure"]["at"],
+                "dateA": selected["arrival"]["at"],
+                "nbr": last_q.get("adults", 1),
+                "prix": f"{selected['price']} {selected['currency']}",
             }
 
-        flight_index = intent_data.get("flight_index", 1) or 1
-        try:
-            idx = max(int(flight_index) - 1, 0)
-        except Exception:
-            idx = 0
-
-        selected_flight = flights[min(idx, len(flights) - 1)]
-
-        reservation = {
-            "id": str(uuid.uuid4())[:8],
-            "nom": intent_data.get("nom") or "Non renseigné",
-            "prenom": intent_data.get("prenom") or "Non renseigné",
-            "lieuD": selected_flight["departure"]["iata"],
-            "lieuA": selected_flight["arrival"]["iata"],
-            "dateD": selected_flight["departure"]["at"],
-            "dateA": selected_flight["arrival"]["at"],
-            "nbr": query.get("adults", 1),
-            "prix": f"{selected_flight['price']}{selected_flight['currency']}",
-        }
-
-        try:
             save_reservation_to_sheet(reservation)
-
             update_session(session_id, {"flights": [], "last_query": None, "state": "idle"})
 
             return {
-                "session_id": session_id,
-                "answer": (
-                    "✅ Réservation confirmée !\n"
-                    f"Vol {selected_flight['airline']} : {reservation['lieuD']} → {reservation['lieuA']}\n"
-                    f"Départ : {_fmt_dt(reservation['dateD'])}\n"
-                    f"Arrivée : {_fmt_dt(reservation['dateA'])}\n"
-                    f"Prix : {reservation['prix']}\n"
-                    f"Référence : {reservation['id']}"
-                ),
-                "flights": [],
-                "hotels": [],
-                "reserved": True,
+                "session_id": session_id, 
+                "answer": f"✅ Réservation confirmée ! Réf: {reservation['id']}\nVol: {reservation['lieuD']} → {reservation['lieuA']}"
             }
         except Exception as e:
-            return {
-                "session_id": session_id,
-                "answer": f"❌ Erreur lors de la réservation : {str(e)}",
-                "flights": flights,
-                "hotels": [],
-            }
+            return {"session_id": session_id, "answer": f"Erreur réservation : {str(e)}"}
 
-    # ---- SEARCH (default) ----
+    # 5. RECHERCHE DE VOL (Search / Par défaut)
     try:
-        if intent_data and intent_data.get("intent") == "search" and intent_data.get("originLocationCode"):
+        # On tente d'utiliser les données extraites par l'IA si dispo, sinon on force l'extraction
+        if intent == "search" and analysis.get("originLocationCode"):
             q = {
-                "originLocationCode": intent_data["originLocationCode"],
-                "destinationLocationCode": intent_data["destinationLocationCode"],
-                "departureDate": intent_data["departureDate"],
-                "adults": int(intent_data.get("adults", 1)),
-                "max": 5,
+                "originLocationCode": analysis["originLocationCode"],
+                "destinationLocationCode": analysis["destinationLocationCode"],
+                "departureDate": analysis["departureDate"],
+                "adults": int(analysis.get("adults", 1)),
+                "max": 5
             }
         else:
-            extracted = extract_flight_query(msg)
-            q = {
-                "originLocationCode": extracted["originLocationCode"],
-                "destinationLocationCode": extracted["destinationLocationCode"],
-                "departureDate": extracted["departureDate"],
-                "adults": int(extracted.get("adults", 1)),
-                "max": 5,
-            }
+            # Fallback sur l'extracteur manuel
+            q = extract_flight_query(msg)
+            q["max"] = 5
 
         raw_flights = search_flights(q)
         flights = format_flight_data(raw_flights)
 
         if not flights:
-            return {
-                "session_id": session_id,
-                "answer": f"Aucun vol trouvé de {q['originLocationCode']} vers {q['destinationLocationCode']} le {q['departureDate']}.",
-            }
+            return {"session_id": session_id, "answer": "Aucun vol trouvé pour ces critères."}
 
         update_session(session_id, {"flights": flights, "last_query": q, "state": "awaiting_reservation"})
-
-        answer = (
-            f"✈️ Vols trouvés de {q['originLocationCode']} vers {q['destinationLocationCode']} le {q['departureDate']} "
-            f"(triés du moins cher au plus cher) :\n\n"
-            f"{_flights_to_text(flights)}\n\n"
-            'Dis : "Je réserve le vol 1" pour réserver.'
-        )
-        return {"session_id": session_id, "answer": answer}
+        
+        return {
+            "session_id": session_id, 
+            "answer": f"✈️ Vols trouvés ({q['originLocationCode']} -> {q['destinationLocationCode']}) :\n\n{_flights_to_text(flights)}"
+        }
 
     except Exception:
+        # Si rien n'a matché et que l'extraction de vol échoue aussi
         return {"session_id": session_id, "answer": _flight_need_info_answer()}

@@ -37,9 +37,9 @@ def ask_model_to_process(message: str) -> dict:
 
     prompt = (
         f"{current_date}\n"
-        "Analyse le message de l'utilisateur pour déterminer s'il veut RECHERCHER un vol ou RÉSERVER un vol.\n\n"
+        "Analyse le message de l'utilisateur pour déterminer s'il veut (RECHERCHER un vol ou RÉSERVER un vol) ou (RECHERCHER un hotel) ou (avoir des suggestions ou avoir une conversation).\n\n"
         "CONSIGNES JSON STRICTES :\n"
-        "1) Ajoute une clé 'intent' qui vaut soit 'search' soit 'book'.\n"
+        "1) Ajoute une clé 'intent' qui vaut soit 'search' soit 'book' soit 'advice' soit 'hotel'.\n"
         "2) Si intent == 'search' : réponds en JSON à plat avec UNIQUEMENT ces clés :\n"
         "   intent, originLocationCode, destinationLocationCode, departureDate, adults.\n"
         "   - originLocationCode / destinationLocationCode : codes IATA (3 lettres majuscules)\n"
@@ -49,7 +49,10 @@ def ask_model_to_process(message: str) -> dict:
         "   intent, flight_index, nom, prenom\n"
         "   - flight_index : numéro du vol que l'utilisateur veut réserver (1 par défaut)\n"
         "   - nom / prenom : si l'utilisateur les donne dans la phrase, sinon null\n"
-        "4) Tu réponds UNIQUEMENT en JSON valide.\n"
+        "4) si intent == 'advice' : réponds en JSON à plat avec UNIQUEMENT la clé: intent\n"
+        "5) si intent == 'hotel' : réponds en JSON à plat avec UNIQUEMENT la clés : intent\n"
+ 
+        "6) Important, Tu réponds UNIQUEMENT en format JSON valide.\n"
         f"Phrase : {message}"
     )
 
